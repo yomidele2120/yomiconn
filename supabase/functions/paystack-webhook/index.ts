@@ -14,7 +14,16 @@ serve(async (req) => {
     const signature = req.headers.get('x-paystack-signature');
 
     // Verify webhook signature
-    const hash = hmac('sha512', PAYSTACK_SECRET_KEY, body).hex();
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(PAYSTACK_SECRET_KEY),
+      { name: "HMAC", hash: "SHA-512" },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+    const hash = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
     if (hash !== signature) {
       console.error('Invalid webhook signature');
       return new Response('Invalid signature', { status: 401 });
