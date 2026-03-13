@@ -140,7 +140,14 @@ serve(async (req) => {
       body: JSON.stringify(apiBody),
     });
 
-    const cdhData = await cdhResponse.json();
+    const cdhText = await cdhResponse.text();
+    let cdhData;
+    try {
+      cdhData = JSON.parse(cdhText);
+    } catch {
+      console.error('Non-JSON response from CheapDataHub:', cdhText.substring(0, 200));
+      cdhData = { message: 'CheapDataHub returned non-JSON response' };
+    }
 
     let status = 'processing';
     if (cdhResponse.ok) {
