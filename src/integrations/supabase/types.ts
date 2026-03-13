@@ -14,12 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      fraud_events: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_type: string
+          id: string
+          resolved: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_type: string
+          id?: string
+          resolved?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_type?: string
+          id?: string
+          resolved?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
           email: string | null
+          frozen_at: string | null
+          frozen_reason: string | null
           full_name: string | null
           id: string
+          is_frozen: boolean
           phone: string | null
           updated_at: string
           user_id: string
@@ -27,8 +57,11 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          frozen_at?: string | null
+          frozen_reason?: string | null
           full_name?: string | null
           id?: string
+          is_frozen?: boolean
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -36,10 +69,34 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          frozen_at?: string | null
+          frozen_reason?: string | null
           full_name?: string | null
           id?: string
+          is_frozen?: boolean
           phone?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
           user_id?: string
         }
         Relationships: []
@@ -196,12 +253,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_fraud: { Args: { p_user_id: string }; Returns: Json }
+      check_rate_limit: {
+        Args: {
+          p_action: string
+          p_max_count: number
+          p_user_id: string
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
+      credit_wallet: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: undefined
+      }
+      deduct_wallet: {
+        Args: { p_amount: number; p_reference: string; p_user_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      refund_wallet: {
+        Args: { p_amount: number; p_reference: string; p_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {

@@ -15,15 +15,10 @@ serve(async (req) => {
 
   try {
     const CDH_API_KEY = Deno.env.get('CHEAPDATAHUB_API_KEY');
-    if (!CDH_API_KEY) {
-      throw new Error('CHEAPDATAHUB_API_KEY is not configured');
-    }
+    if (!CDH_API_KEY) throw new Error('CHEAPDATAHUB_API_KEY is not configured');
 
-    // Verify auth
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('Authorization required');
-    }
+    if (!authHeader) throw new Error('Authorization required');
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -37,32 +32,56 @@ serve(async (req) => {
     );
 
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-    if (authError || !user) {
-      throw new Error('Unauthorized');
-    }
+    if (authError || !user) throw new Error('Unauthorized');
 
     const body = await req.json();
-    const { service_type, amount, ...params } = body;
+    const { service_type, amount, idempotency_key, ...params } = body;
 
-    // Check wallet balance
-    const { data: wallet, error: walletError } = await supabaseAdmin
-      .from('wallets')
-      .select('balance')
-      .eq('user_id', user.id)
-      .single();
-
-    if (walletError || !wallet) {
-      throw new Error('Wallet not found');
+    // === FRAUD CHECK ===
+    const { data: fraudResult } = await supabaseAdmin.rpc('check_fraud', { p_user_id: user.id });
+    if (fraudResult?.blocked) {
+      throw new Error(fraudResult.reason || 'Account blocked');
     }
 
-    if (wallet.balance < amount) {
-      throw new Error('Insufficient wallet balance');
+    // === RATE LIMITING: max 5 purchases per minute ===
+    const { data: allowed } = await supabaseAdmin.rpc('check_rate_limit', {
+      p_user_id: user.id,
+      p_action: 'purchase',
+      p_max_count: 5,
+      p_window_seconds: 60,
+    });
+    if (!allowed) {
+      throw new Error('Rate limit exceeded. Please wait before making another purchase.');
     }
 
-    // Generate reference
-    const reference = `YC-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    // === GENERATE UNIQUE REFERENCE ===
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const reference = idempotency_key || `YOMI-${dateStr}-${rand}`;
 
-    // Record service transaction as initiated
+    // === ATOMIC WALLET DEDUCTION (with idempotency check) ===
+    const { data: deductResult, error: deductError } = await supabaseAdmin.rpc('deduct_wallet', {
+      p_user_id: user.id,
+      p_amount: amount,
+      p_reference: reference,
+    });
+
+    if (deductError) throw new Error(deductError.message);
+
+    if (deductResult?.status === 'duplicate') {
+      return new Response(JSON.stringify({
+        success: true,
+        duplicate: true,
+        reference,
+        message: 'Transaction already processed',
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (deductResult?.status === 'error') {
+      throw new Error(deductResult.message);
+    }
+
+    // === RECORD SERVICE TRANSACTION ===
     await supabaseAdmin.from('service_transactions').insert({
       user_id: user.id,
       service_type,
@@ -74,58 +93,26 @@ serve(async (req) => {
       metadata: params,
     });
 
-    // Deduct from wallet
-    await supabaseAdmin
-      .from('wallets')
-      .update({ balance: wallet.balance - amount })
-      .eq('user_id', user.id);
-
-    // Record wallet debit
-    await supabaseAdmin.from('wallet_transactions').insert({
-      user_id: user.id,
-      type: 'debit',
-      amount,
-      reference,
-      description: `${service_type} purchase`,
-      status: 'successful',
-    });
-
-    // Call CheapDataHub API
+    // === CALL CHEAPDATAHUB API ===
     let endpoint = '';
     let apiBody: Record<string, any> = {};
 
     switch (service_type) {
       case 'airtime':
         endpoint = '/airtime/purchase/';
-        apiBody = {
-          provider_id: params.provider_id,
-          phone_number: params.phone_number,
-          amount,
-        };
+        apiBody = { provider_id: params.provider_id, phone_number: params.phone_number, amount };
         break;
       case 'data':
         endpoint = '/data/purchase/';
-        apiBody = {
-          bundle_id: params.bundle_id,
-          phone_number: params.phone_number,
-        };
+        apiBody = { bundle_id: params.bundle_id, phone_number: params.phone_number };
         break;
       case 'electricity':
         endpoint = '/electricity/purchase/';
-        apiBody = {
-          disco: params.disco,
-          meter_no: params.meter_no,
-          amount,
-          phone_number: params.phone_number,
-          meter_type: params.meter_type,
-        };
+        apiBody = { disco: params.disco, meter_no: params.meter_no, amount, phone_number: params.phone_number, meter_type: params.meter_type };
         break;
       case 'cable':
         endpoint = '/cable/purchase/';
-        apiBody = {
-          smartcard_no: params.smartcard_no,
-          plan_id: params.plan_id,
-        };
+        apiBody = { smartcard_no: params.smartcard_no, plan_id: params.plan_id };
         break;
       default:
         throw new Error('Invalid service type');
@@ -154,25 +141,18 @@ serve(async (req) => {
       status = 'successful';
     } else {
       status = 'failed';
-      // Refund on failure
-      await supabaseAdmin
-        .from('wallets')
-        .update({ balance: wallet.balance })
-        .eq('user_id', user.id);
-
-      await supabaseAdmin
-        .from('wallet_transactions')
-        .update({ status: 'refunded' })
-        .eq('reference', reference);
+      // Refund on failure (atomic)
+      await supabaseAdmin.rpc('refund_wallet', {
+        p_user_id: user.id,
+        p_amount: amount,
+        p_reference: reference,
+      });
     }
 
     // Update service transaction status
     await supabaseAdmin
       .from('service_transactions')
-      .update({
-        status,
-        api_response: cdhData,
-      })
+      .update({ status, api_response: cdhData })
       .eq('reference', reference);
 
     if (!cdhResponse.ok) {

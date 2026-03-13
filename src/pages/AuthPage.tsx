@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,10 +32,20 @@ export default function AuthPage() {
           return;
         }
         await signUp(email, password, fullName);
-        toast.success("Account created! Check your email to verify.");
+        toast.success("Account created! Redirecting...");
+        navigate("/dashboard");
       }
     } catch (error: any) {
-      toast.error(error.message || "An error occurred");
+      const msg = error.message || "An error occurred";
+      if (msg.includes("already registered") || msg.includes("already exists")) {
+        toast.error("This email is already registered. Please sign in.");
+      } else if (msg.includes("password") && msg.includes("weak")) {
+        toast.error("Password is too weak. Use at least 6 characters.");
+      } else if (msg.includes("network") || msg.includes("fetch")) {
+        toast.error("Network error. Please check your connection.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -53,7 +63,7 @@ export default function AuthPage() {
           </div>
           <CardTitle className="text-xl">{isLogin ? "Welcome back" : "Create account"}</CardTitle>
           <CardDescription>
-            {isLogin ? "Sign in to your account" : "Get started with YOMIconnect"}
+            {isLogin ? "Sign in to your account" : "Get started with YOMIconnect — no email verification needed"}
           </CardDescription>
         </CardHeader>
         <CardContent>
