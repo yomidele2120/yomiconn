@@ -13,6 +13,7 @@ import AirtimePage from "./pages/AirtimePage";
 import DataPage from "./pages/DataPage";
 import ElectricityPage from "./pages/ElectricityPage";
 import CablePage from "./pages/CablePage";
+import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/services/data" element={<ProtectedRoute><DataPage /></ProtectedRoute>} />
             <Route path="/services/electricity" element={<ProtectedRoute><ElectricityPage /></ProtectedRoute>} />
             <Route path="/services/cable" element={<ProtectedRoute><CablePage /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
