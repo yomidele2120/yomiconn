@@ -12,17 +12,17 @@ export default function ServiceGrid() {
   const navigate = useNavigate();
 
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-4 gap-2 sm:gap-3">
       {services.map((service) => (
         <button
           key={service.id}
           onClick={() => navigate(service.path)}
-          className="flex flex-col items-center gap-2 p-4 rounded-xl bg-card border border-border hover:shadow-md transition-all duration-200 animate-fade-in"
+          className="flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl bg-card border border-border hover:shadow-md transition-all duration-200 animate-fade-in"
         >
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${service.color}`}>
-            <service.icon className="w-6 h-6" />
+          <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${service.color}`}>
+            <service.icon className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <span className="text-xs font-medium text-foreground">{service.label}</span>
+          <span className="text-[10px] sm:text-xs font-medium text-foreground">{service.label}</span>
         </button>
       ))}
     </div>

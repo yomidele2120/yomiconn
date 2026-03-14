@@ -4,9 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 serve(async (req) => {
   try {
     const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY');
-    if (!PAYSTACK_SECRET_KEY) {
-      throw new Error('PAYSTACK_SECRET_KEY is not configured');
-    }
+    if (!PAYSTACK_SECRET_KEY) throw new Error('PAYSTACK_SECRET_KEY is not configured');
 
     const body = await req.text();
     const signature = req.headers.get('x-paystack-signature');
@@ -14,11 +12,8 @@ serve(async (req) => {
     // Verify webhook signature
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(PAYSTACK_SECRET_KEY),
-      { name: "HMAC", hash: "SHA-512" },
-      false,
-      ["sign"]
+      "raw", encoder.encode(PAYSTACK_SECRET_KEY),
+      { name: "HMAC", hash: "SHA-512" }, false, ["sign"]
     );
     const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
     const hash = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -34,7 +29,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Log the webhook
+    // Log webhook
     await supabaseAdmin.from('webhook_logs').insert({
       source: 'paystack',
       event_type: event.event,
@@ -42,10 +37,10 @@ serve(async (req) => {
     });
 
     if (event.event === 'charge.success') {
-      const { reference, amount, customer } = event.data;
+      const { reference, amount } = event.data;
       const amountNaira = amount / 100;
 
-      // Verify the transaction with Paystack
+      // Verify with Paystack
       const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
         headers: { 'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}` },
       });
@@ -56,62 +51,64 @@ serve(async (req) => {
         return new Response('Verification failed', { status: 400 });
       }
 
-      // Find user by email
-      const { data: profiles } = await supabaseAdmin
-        .from('profiles')
-        .select('user_id')
-        .eq('email', customer.email)
+      // Find payment session by reference
+      const { data: session } = await supabaseAdmin
+        .from('payment_sessions')
+        .select('*')
+        .eq('reference', reference)
         .single();
 
-      if (!profiles?.user_id) {
-        console.error('User not found for email:', customer.email);
-        return new Response('User not found', { status: 404 });
+      if (!session) {
+        console.error('Payment session not found for reference:', reference);
+        return new Response('Session not found', { status: 404 });
       }
 
-      const userId = profiles.user_id;
+      if (session.status === 'completed') {
+        console.log('Already processed:', reference);
+        return new Response('Already processed', { status: 200 });
+      }
 
-      // Check for duplicate reference
+      const userId = session.user_id;
+
+      // Check for duplicate wallet transaction
       const { data: existing } = await supabaseAdmin
         .from('wallet_transactions')
         .select('id')
         .eq('reference', reference)
         .single();
 
-      if (existing) {
-        console.log('Duplicate webhook for reference:', reference);
-        return new Response('Already processed', { status: 200 });
+      if (!existing) {
+        // Credit wallet atomically
+        const { error: walletError } = await supabaseAdmin.rpc('credit_wallet', {
+          p_user_id: userId,
+          p_amount: amountNaira,
+        });
+
+        if (walletError) {
+          // Fallback
+          await supabaseAdmin
+            .from('wallets')
+            .update({ balance: (session.amount || 0) + amountNaira })
+            .eq('user_id', userId);
+        }
+
+        // Record transaction
+        await supabaseAdmin.from('wallet_transactions').insert({
+          user_id: userId,
+          type: 'credit',
+          amount: amountNaira,
+          reference,
+          description: 'Wallet funded via Paystack',
+          status: 'successful',
+          metadata: { paystack_reference: reference },
+        });
       }
 
-      // Credit wallet (atomic operation)
-      const { error: walletError } = await supabaseAdmin.rpc('credit_wallet', {
-        p_user_id: userId,
-        p_amount: amountNaira,
-      });
-
-      // If RPC doesn't exist yet, fallback to direct update
-      if (walletError) {
-        const { data: wallet } = await supabaseAdmin
-          .from('wallets')
-          .select('balance')
-          .eq('user_id', userId)
-          .single();
-
-        await supabaseAdmin
-          .from('wallets')
-          .update({ balance: (wallet?.balance || 0) + amountNaira })
-          .eq('user_id', userId);
-      }
-
-      // Record transaction
-      await supabaseAdmin.from('wallet_transactions').insert({
-        user_id: userId,
-        type: 'credit',
-        amount: amountNaira,
-        reference,
-        description: 'Wallet funded via Paystack',
-        status: 'successful',
-        metadata: { paystack_reference: reference },
-      });
+      // Update payment session
+      await supabaseAdmin
+        .from('payment_sessions')
+        .update({ status: 'completed' })
+        .eq('id', session.id);
     }
 
     return new Response('OK', { status: 200 });
