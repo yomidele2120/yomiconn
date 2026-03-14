@@ -17,16 +17,48 @@ serve(async (req) => {
       throw new Error('PAYSTACK_SECRET_KEY is not configured');
     }
 
-    const { amount, email } = await req.json();
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) throw new Error('Missing authorization header');
 
-    if (!amount || !email) {
-      throw new Error('Amount and email are required');
-    }
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
 
-    if (amount < 100) {
+    // Get user from JWT
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) throw new Error('Unauthorized');
+
+    const { amount } = await req.json();
+
+    if (!amount || amount < 100) {
       throw new Error('Minimum amount is ₦100');
     }
 
+    // Generate unique reference
+    const shortId = user.id.slice(0, 8);
+    const timestamp = Date.now();
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const reference = `YOMI-PAY-${shortId}-${timestamp}-${rand}`;
+
+    // Create payment session in DB
+    const { error: sessionError } = await supabaseAdmin
+      .from('payment_sessions')
+      .insert({
+        user_id: user.id,
+        reference,
+        amount,
+        status: 'pending',
+      });
+
+    if (sessionError) throw new Error('Failed to create payment session: ' + sessionError.message);
+
+    // Initialize Paystack transaction
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -35,21 +67,34 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         amount: amount * 100, // Paystack uses kobo
-        email,
-        callback_url: `${req.headers.get('origin') || Deno.env.get('SITE_URL')}/dashboard?payment=success`,
+        email: user.email,
+        reference,
+        callback_url: `${req.headers.get('origin') || Deno.env.get('SITE_URL')}/payment-waiting?ref=${reference}`,
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok || !data.status) {
+      // Clean up session
+      await supabaseAdmin.from('payment_sessions').delete().eq('reference', reference);
       throw new Error(data.message || 'Failed to initialize payment');
     }
 
+    // Update session with Paystack details
+    await supabaseAdmin
+      .from('payment_sessions')
+      .update({
+        paystack_reference: data.data.reference,
+        authorization_url: data.data.authorization_url,
+        status: 'waiting_for_payment',
+      })
+      .eq('reference', reference);
+
     return new Response(JSON.stringify({
       authorization_url: data.data.authorization_url,
-      reference: data.data.reference,
-      access_code: data.data.access_code,
+      reference,
+      paystack_reference: data.data.reference,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

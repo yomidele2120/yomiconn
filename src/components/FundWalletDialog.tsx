@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useQueryClient } from "@tanstack/react-query";
 
 interface FundWalletDialogProps {
   open: boolean;
@@ -17,8 +16,7 @@ interface FundWalletDialogProps {
 export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialogProps) {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const quickAmounts = [500, 1000, 2000, 5000];
 
@@ -32,13 +30,16 @@ export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialo
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("initialize-payment", {
-        body: { amount: numAmount, email: user?.email },
+        body: { amount: numAmount },
       });
 
       if (error) throw error;
 
-      if (data?.authorization_url) {
-        window.location.href = data.authorization_url;
+      if (data?.authorization_url && data?.reference) {
+        // Open Paystack in new tab and navigate to waiting page
+        window.open(data.authorization_url, "_blank");
+        onOpenChange(false);
+        navigate(`/payment-waiting?ref=${data.reference}`);
       } else {
         toast.error("Failed to initialize payment");
       }
@@ -51,7 +52,7 @@ export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md mx-4">
         <DialogHeader>
           <DialogTitle className="font-heading">Fund Wallet</DialogTitle>
         </DialogHeader>
@@ -66,14 +67,14 @@ export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialo
               min={100}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {quickAmounts.map((qa) => (
               <Button
                 key={qa}
                 variant="outline"
                 size="sm"
                 onClick={() => setAmount(String(qa))}
-                className="flex-1"
+                className="text-xs"
               >
                 ₦{qa.toLocaleString()}
               </Button>

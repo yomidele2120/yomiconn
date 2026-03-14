@@ -41,6 +41,45 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_sessions: {
+        Row: {
+          amount: number
+          authorization_url: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          paystack_reference: string | null
+          reference: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          authorization_url?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          paystack_reference?: string | null
+          reference: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          authorization_url?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          paystack_reference?: string | null
+          reference?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
