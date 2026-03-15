@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 const cableProviders = [
   { id: "dstv", name: "DSTV" },
@@ -23,6 +24,8 @@ interface CablePlan {
   id: string;
   name: string;
   price: number;
+  provider_source: string;
+  provider_plan_id: string;
 }
 
 export default function CablePage() {
@@ -77,7 +80,9 @@ export default function CablePage() {
         body: {
           service_type: "cable",
           smartcard_no: smartcard,
-          plan_id: planId,
+          plan_id: selectedPlan.provider_plan_id,
+          provider_plan_id: selectedPlan.provider_plan_id,
+          provider_source: selectedPlan.provider_source,
           amount: selectedPlan.price,
         },
       });
@@ -144,11 +149,14 @@ export default function CablePage() {
             </div>
 
             {selectedPlan && (
-              <div className="p-3 rounded-lg bg-muted text-center">
+              <div className="p-3 rounded-lg bg-muted text-center space-y-1">
                 <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-heading font-bold text-foreground">
                   ₦{selectedPlan.price.toLocaleString()}
                 </p>
+                <Badge variant="outline" className="text-xs">
+                  {selectedPlan.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
+                </Badge>
               </div>
             )}
 
