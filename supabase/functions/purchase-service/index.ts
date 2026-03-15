@@ -3,10 +3,140 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api/v1/resellers';
+const BD_BASE_URL = 'https://blessdata.com.ng/api';
+
+// ─── Provider API call helpers ───
+
+async function callCheapDataHub(
+  apiKey: string,
+  serviceType: string,
+  params: Record<string, any>,
+  amount: number
+): Promise<{ ok: boolean; data: any }> {
+  let endpoint = '';
+  let apiBody: Record<string, any> = {};
+
+  switch (serviceType) {
+    case 'airtime':
+      endpoint = '/airtime/purchase/';
+      apiBody = { provider_id: params.provider_id, phone_number: params.phone_number, amount };
+      break;
+    case 'data':
+      endpoint = '/data/purchase/';
+      apiBody = { bundle_id: params.bundle_id, phone_number: params.phone_number };
+      break;
+    case 'electricity':
+      endpoint = '/electricity/purchase/';
+      apiBody = { disco: params.disco, meter_no: params.meter_no, amount, phone_number: params.phone_number, meter_type: params.meter_type };
+      break;
+    case 'cable':
+      endpoint = '/cable/purchase/';
+      apiBody = { smartcard_no: params.smartcard_no, plan_id: params.plan_id };
+      break;
+    default:
+      throw new Error('Invalid service type');
+  }
+
+  const res = await fetch(`${CDH_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(apiBody),
+  });
+
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response' }; }
+  return { ok: res.ok, data };
+}
+
+// BlessData network mapping: 1=MTN, 2=GLO, 3=9mobile, 4=Airtel
+const BD_NETWORK_MAP: Record<string, number> = {
+  '1': 1, // MTN → 1
+  '2': 4, // Airtel → 4 (our ID 2 = Airtel)
+  '3': 2, // Glo → 2
+  '4': 3, // 9mobile → 3
+};
+
+async function callBlessData(
+  apiKey: string,
+  serviceType: string,
+  params: Record<string, any>,
+  amount: number,
+  reference: string
+): Promise<{ ok: boolean; data: any }> {
+  let endpoint = '';
+  let apiBody: Record<string, any> = {};
+
+  const bdNetwork = BD_NETWORK_MAP[params.provider_id] || BD_NETWORK_MAP[params.network_id] || 1;
+
+  switch (serviceType) {
+    case 'airtime':
+      endpoint = '/airtime/';
+      apiBody = {
+        phone: params.phone_number,
+        network: bdNetwork,
+        amount,
+        airtel_type: 'VTU',
+        ref: reference,
+      };
+      break;
+    case 'data':
+      endpoint = '/data/';
+      apiBody = {
+        phone: params.phone_number,
+        network: bdNetwork,
+        data_plan: params.provider_plan_id || params.bundle_id,
+        bypass: 0,
+        ref: reference,
+      };
+      break;
+    case 'electricity':
+      endpoint = '/electricity/';
+      apiBody = {
+        phone: params.phone_number,
+        meter_number: params.meter_no,
+        disco: params.disco,
+        amount,
+        meter_type: params.meter_type,
+        ref: reference,
+      };
+      break;
+    case 'cable':
+      endpoint = '/cabletv/';
+      apiBody = {
+        smart_card_number: params.smartcard_no,
+        cable_plan: params.provider_plan_id || params.plan_id,
+        ref: reference,
+      };
+      break;
+    default:
+      throw new Error('Invalid service type');
+  }
+
+  const res = await fetch(`${BD_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(apiBody),
+  });
+
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 200) }; }
+
+  // BlessData uses Status field
+  const isSuccess = res.ok && (data.Status === 'successful' || data.status === 'successful');
+  return { ok: isSuccess, data };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -15,7 +145,7 @@ serve(async (req) => {
 
   try {
     const CDH_API_KEY = Deno.env.get('CHEAPDATAHUB_API_KEY');
-    if (!CDH_API_KEY) throw new Error('CHEAPDATAHUB_API_KEY is not configured');
+    const BD_API_KEY = Deno.env.get('BLESSDATA_API_KEY');
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) throw new Error('Authorization required');
@@ -35,7 +165,14 @@ serve(async (req) => {
     if (authError || !user) throw new Error('Unauthorized');
 
     const body = await req.json();
-    const { service_type, amount, idempotency_key, ...params } = body;
+    const { service_type, amount, idempotency_key, provider_source, ...params } = body;
+
+    // Determine which provider to use
+    const source: string = provider_source || 'cheapdatahub';
+
+    // Validate provider API key is available
+    if (source === 'cheapdatahub' && !CDH_API_KEY) throw new Error('CheapDataHub API key not configured');
+    if (source === 'blessdata' && !BD_API_KEY) throw new Error('BlessData API key not configured');
 
     // === FRAUD CHECK ===
     const { data: fraudResult } = await supabaseAdmin.rpc('check_fraud', { p_user_id: user.id });
@@ -43,7 +180,7 @@ serve(async (req) => {
       throw new Error(fraudResult.reason || 'Account blocked');
     }
 
-    // === RATE LIMITING: max 5 purchases per minute ===
+    // === RATE LIMITING ===
     const { data: allowed } = await supabaseAdmin.rpc('check_rate_limit', {
       p_user_id: user.id,
       p_action: 'purchase',
@@ -57,9 +194,10 @@ serve(async (req) => {
     // === GENERATE UNIQUE REFERENCE ===
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const reference = idempotency_key || `YOMI-${dateStr}-${rand}`;
+    const prefix = source === 'blessdata' ? 'BD' : 'CDH';
+    const reference = idempotency_key || `YOMI-${prefix}-${dateStr}-${rand}`;
 
-    // === ATOMIC WALLET DEDUCTION (with idempotency check) ===
+    // === ATOMIC WALLET DEDUCTION ===
     const { data: deductResult, error: deductError } = await supabaseAdmin.rpc('deduct_wallet', {
       p_user_id: user.id,
       p_amount: amount,
@@ -87,61 +225,25 @@ serve(async (req) => {
       service_type,
       amount,
       reference,
-      provider: params.provider_id || params.disco || params.plan_id || '',
+      provider: `${source}:${params.provider_id || params.disco || params.plan_id || ''}`,
       phone_number: params.phone_number || '',
       status: 'initiated',
-      metadata: params,
+      metadata: { ...params, provider_source: source },
     });
 
-    // === CALL CHEAPDATAHUB API ===
-    let endpoint = '';
-    let apiBody: Record<string, any> = {};
+    // === CALL PROVIDER API ===
+    let result: { ok: boolean; data: any };
 
-    switch (service_type) {
-      case 'airtime':
-        endpoint = '/airtime/purchase/';
-        apiBody = { provider_id: params.provider_id, phone_number: params.phone_number, amount };
-        break;
-      case 'data':
-        endpoint = '/data/purchase/';
-        apiBody = { bundle_id: params.bundle_id, phone_number: params.phone_number };
-        break;
-      case 'electricity':
-        endpoint = '/electricity/purchase/';
-        apiBody = { disco: params.disco, meter_no: params.meter_no, amount, phone_number: params.phone_number, meter_type: params.meter_type };
-        break;
-      case 'cable':
-        endpoint = '/cable/purchase/';
-        apiBody = { smartcard_no: params.smartcard_no, plan_id: params.plan_id };
-        break;
-      default:
-        throw new Error('Invalid service type');
-    }
-
-    const cdhResponse = await fetch(`${CDH_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${CDH_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(apiBody),
-    });
-
-    const cdhText = await cdhResponse.text();
-    let cdhData;
-    try {
-      cdhData = JSON.parse(cdhText);
-    } catch {
-      console.error('Non-JSON response from CheapDataHub:', cdhText.substring(0, 200));
-      cdhData = { message: 'CheapDataHub returned non-JSON response' };
-    }
-
-    let status = 'processing';
-    if (cdhResponse.ok) {
-      status = 'successful';
+    if (source === 'blessdata') {
+      result = await callBlessData(BD_API_KEY!, service_type, params, amount, reference);
     } else {
-      status = 'failed';
-      // Refund on failure (atomic)
+      result = await callCheapDataHub(CDH_API_KEY!, service_type, params, amount);
+    }
+
+    let status = result.ok ? 'successful' : 'failed';
+
+    if (!result.ok) {
+      // Refund on failure
       await supabaseAdmin.rpc('refund_wallet', {
         p_user_id: user.id,
         p_amount: amount,
@@ -149,21 +251,21 @@ serve(async (req) => {
       });
     }
 
-    // Update service transaction status
+    // Update service transaction
     await supabaseAdmin
       .from('service_transactions')
-      .update({ status, api_response: cdhData })
+      .update({ status, api_response: result.data })
       .eq('reference', reference);
 
-    if (!cdhResponse.ok) {
-      const errorMsg = cdhData?.message || `API error: ${cdhResponse.status}`;
+    if (!result.ok) {
+      const errorMsg = result.data?.message || result.data?.detail || `Provider error (${source})`;
       throw new Error(errorMsg);
     }
 
     return new Response(JSON.stringify({
       success: true,
       reference,
-      data: cdhData,
+      data: result.data,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
