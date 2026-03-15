@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 
 const cableProviders = [
   { id: "dstv", name: "DSTV" },
-  { id: "gotv", name: "GOTV" },
+  { id: "gotv", name: "GOtv" },
   { id: "startimes", name: "Startimes" },
 ];
 
@@ -30,42 +30,42 @@ interface CablePlan {
 
 export default function CablePage() {
   const navigate = useNavigate();
-  const { cable } = useParams();
+  const [provider, setProvider] = useState("");
+  const [smartcard, setSmartcard] = useState("");
   const [planId, setPlanId] = useState("");
-  const [phone, setPhone] = useState("");
-  const [cablePlans, setCablePlans] = useState<CablePlan[]>([]);
+  const [plans, setPlans] = useState<CablePlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (cable) {
-      fetchCablePlans(cable);
+    if (provider) {
+      fetchPlans(provider);
     }
-  }, [cable]);
+  }, [provider]);
 
-  const fetchCablePlans = async (cable: string) => {
+  const fetchPlans = async (providerId: string) => {
     setPlansLoading(true);
     setPlanId("");
     try {
       const { data, error } = await supabase.functions.invoke("get-cable-plans", {
-        body: { cable },
+        body: { provider_id: providerId },
       });
       if (error) throw error;
-      setCablePlans(data?.plans ?? []);
-    } catch (error: any) {
-      toast.error("Failed to load cable plans");
-      setCablePlans([]);
+      setPlans(data?.plans ?? []);
+    } catch {
+      toast.error("Failed to load plans");
+      setPlans([]);
     } finally {
       setPlansLoading(false);
     }
   };
 
-  const selectedPlan = cablePlans.find((b) => b.id === planId);
+  const selectedPlan = plans.find((p) => p.id === planId);
 
   const handlePurchase = async () => {
-    if (!cable || !phone || !planId || !selectedPlan) {
+    if (!provider || !smartcard || !planId || !selectedPlan) {
       toast.error("Please fill all fields");
       return;
     }
@@ -79,11 +79,10 @@ export default function CablePage() {
       const { data, error } = await supabase.functions.invoke("purchase-service", {
         body: {
           service_type: "cable",
+          smartcard_no: smartcard,
           plan_id: selectedPlan.provider_plan_id,
           provider_plan_id: selectedPlan.provider_plan_id,
           provider_source: selectedPlan.provider_source,
-          cable: cable,
-          phone_number: phone,
           amount: selectedPlan.price,
         },
       });
@@ -110,47 +109,38 @@ export default function CablePage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg font-heading">
-              <Tv className="w-5 h-5 text-primary" /> {cable?.toUpperCase()} Subscription
+              <Tv className="w-5 h-5 text-destructive" /> Cable TV Subscription
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Cable Provider</Label>
-              <Select value={cable} disabled>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select cable provider" />
-                </SelectTrigger>
+              <Select value={provider} onValueChange={setProvider}>
+                <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
                 <SelectContent>
                   {cableProviders.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>Smart Card/IUC Number</Label>
-              <Input type="tel" placeholder="Enter number" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Label>Smartcard Number</Label>
+              <Input placeholder="Enter smartcard number" value={smartcard} onChange={(e) => setSmartcard(e.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label>Cable Plan</Label>
+              <Label>Subscription Plan</Label>
               {plansLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
+                <Skeleton className="h-10 w-full" />
               ) : (
-                <Select value={planId} onValueChange={setPlanId} disabled={!cablePlans.length}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={cablePlans.length ? "Select a plan" : "Select a cable provider first"} />
-                  </SelectTrigger>
+                <Select value={planId} onValueChange={setPlanId} disabled={!plans.length}>
+                  <SelectTrigger><SelectValue placeholder={plans.length ? "Select plan" : "Select provider first"} /></SelectTrigger>
                   <SelectContent>
-                    {cablePlans.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name} — ₦{b.price.toLocaleString()}
+                    {plans.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} — ₦{p.price.toLocaleString()}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -161,16 +151,18 @@ export default function CablePage() {
             {selectedPlan && (
               <div className="p-3 rounded-lg bg-muted text-center space-y-1">
                 <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-heading font-bold text-foreground">₦{selectedPlan.price.toLocaleString()}</p>
+                <p className="text-2xl font-heading font-bold text-foreground">
+                  ₦{selectedPlan.price.toLocaleString()}
+                </p>
                 <Badge variant="outline" className="text-xs">
-                  {selectedPlan.provider_source === "blessdata" ? "BlessData" : "CheapDataHub"}
+                  {selectedPlan.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
                 </Badge>
               </div>
             )}
 
             <Button onClick={handlePurchase} className="w-full" disabled={loading || !selectedPlan}>
               {loading && <Loader2 className="animate-spin" />}
-              Subscribe Now
+              Subscribe
             </Button>
           </CardContent>
         </Card>

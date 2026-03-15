@@ -149,6 +149,7 @@ export default function ElectricityPage() {
           meter_type: meterType,
           amount: numAmount,
           phone_number: phone,
+          provider_source: "cheapdatahub",
         },
       });
       if (error) throw error;
