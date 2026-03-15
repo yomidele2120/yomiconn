@@ -19,6 +19,9 @@ const providers = [
   { id: "4", name: "9mobile" },
 ];
 
+// Default provider source for airtime — can be toggled per-network in future
+const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
+
 export default function AirtimePage() {
   const navigate = useNavigate();
   const [provider, setProvider] = useState("");
@@ -53,6 +56,7 @@ export default function AirtimePage() {
           provider_id: provider,
           phone_number: phone,
           amount: numAmount,
+          provider_source: DEFAULT_AIRTIME_PROVIDER,
         },
       });
       if (error) throw error;

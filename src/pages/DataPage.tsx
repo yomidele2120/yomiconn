@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 const networks = [
   { id: "1", name: "MTN" },
@@ -25,14 +26,8 @@ interface DataBundle {
   name: string;
   price: number;
   displayPrice: number;
-}
-
-function applyMarkup(bundle: { size_mb?: number; price: number }): number {
-  const sizeMB = bundle.size_mb || 0;
-  if (sizeMB === 500) return bundle.price + 50;
-  if (sizeMB === 1024) return bundle.price + 70;
-  if (sizeMB >= 4096) return bundle.price + 100;
-  return bundle.price;
+  provider_source: string;
+  provider_plan_id: string;
 }
 
 export default function DataPage() {
@@ -86,7 +81,10 @@ export default function DataPage() {
       const { data, error } = await supabase.functions.invoke("purchase-service", {
         body: {
           service_type: "data",
-          bundle_id: bundleId,
+          bundle_id: selectedBundle.provider_plan_id,
+          provider_plan_id: selectedBundle.provider_plan_id,
+          provider_source: selectedBundle.provider_source,
+          network_id: network,
           phone_number: phone,
           amount: selectedBundle.displayPrice,
         },
@@ -157,11 +155,14 @@ export default function DataPage() {
             </div>
 
             {selectedBundle && (
-              <div className="p-3 rounded-lg bg-muted text-center">
+              <div className="p-3 rounded-lg bg-muted text-center space-y-1">
                 <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-heading font-bold text-foreground">
                   ₦{selectedBundle.displayPrice.toLocaleString()}
                 </p>
+                <Badge variant="outline" className="text-xs">
+                  {selectedBundle.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
+                </Badge>
               </div>
             )}
 
