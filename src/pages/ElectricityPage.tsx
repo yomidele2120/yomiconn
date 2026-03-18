@@ -425,7 +425,13 @@ export default function ElectricityPage() {
               </div>
 
               <Button
-                onClick={() => setShowConfirm(true)}
+                onClick={() => {
+                  if ((wallet?.balance ?? 0) < Number(amount)) {
+                    toast.error("Insufficient balance. Please fund your wallet.");
+                    return;
+                  }
+                  setShowPin(true);
+                }}
                 className="w-full"
                 variant="wallet"
                 disabled={loading}
