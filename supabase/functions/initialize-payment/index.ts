@@ -68,10 +68,11 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        amount: amount * 100, // Paystack uses kobo
+        amount: totalCharge * 100, // Paystack uses kobo; includes fee
         email: user.email,
         reference,
         callback_url: `${req.headers.get('origin') || Deno.env.get('SITE_URL')}/payment-waiting?ref=${reference}`,
+        metadata: { wallet_credit: amount, fee },
       }),
     });
 

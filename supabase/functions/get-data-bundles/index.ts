@@ -67,9 +67,7 @@ async function fetchCdhBundles(networkId: string): Promise<any[]> {
       const originalPrice = bundle.price || 0;
       const planType = bundle.plan_type?.name || '';
       const profit = calculateProfit(originalPrice, sizeGB);
-      const cdhMarkup = applyCdhMarkup(sizeMB, originalPrice);
-      // Use the higher of the two markup methods
-      const finalPrice = Math.max(cdhMarkup, originalPrice + profit);
+      const finalPrice = originalPrice + profit;
 
       return {
         id: `cdh_${bundle.id}`,
