@@ -451,26 +451,12 @@ export default function ElectricityPage() {
         )}
       </div>
 
-      {/* Final confirmation dialog */}
-      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Electricity Purchase</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to pay <strong>₦{Number(amount).toLocaleString()}</strong> for electricity on meter{" "}
-              <strong>{meterNo}</strong> ({discoName}).
-              {meterInfo?.customer_name && (
-                <> Customer: <strong>{meterInfo.customer_name}</strong>.</>
-              )}
-              {" "}This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handlePurchase}>Confirm Purchase</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <TransactionPinDialog
+        open={showPin}
+        onOpenChange={setShowPin}
+        onVerified={handlePurchase}
+        description={`Enter your PIN to confirm ₦${Number(amount).toLocaleString()} electricity purchase for meter ${meterNo}.`}
+      />
     </DashboardLayout>
   );
 }
