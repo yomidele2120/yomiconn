@@ -34,11 +34,13 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) throw new Error('Unauthorized');
 
-    const { amount } = await req.json();
+    const { amount, fee = 0 } = await req.json();
 
     if (!amount || amount < 100) {
       throw new Error('Minimum amount is ₦100');
     }
+
+    const totalCharge = amount + fee; // User pays amount + fee to Paystack; wallet credited with amount only
 
     // Generate unique reference
     const shortId = user.id.slice(0, 8);
