@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw } from "lucide-react";
+import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminPage() {
@@ -20,6 +21,14 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [fundUserId, setFundUserId] = useState("");
   const [fundAmount, setFundAmount] = useState("");
+
+  // Settings state
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [profit1to3, setProfit1to3] = useState("");
+  const [profit4plus, setProfit4plus] = useState("");
+  const [feeBelow5k, setFeeBelow5k] = useState("");
+  const [feeAbove5k, setFeeAbove5k] = useState("");
+  const [pinRequired, setPinRequired] = useState("true");
 
   const { data: isAdmin, isLoading: roleLoading } = useQuery({
     queryKey: ["admin-check", user?.id],
@@ -77,6 +86,26 @@ export default function AdminPage() {
     enabled: isAdmin === true,
   });
 
+  // Load settings
+  const { data: appSettings } = useQuery({
+    queryKey: ["admin-app-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("app_settings").select("key, value");
+      const map: Record<string, any> = {};
+      for (const row of data || []) {
+        map[row.key] = row.value;
+      }
+      // Initialize form
+      setProfit1to3(String(map.data_profit_1_3gb ?? 30));
+      setProfit4plus(String(map.data_profit_4gb_plus ?? 50));
+      setFeeBelow5k(String(map.funding_fee_below_5000 ?? 35));
+      setFeeAbove5k(String(map.funding_fee_above_5000 ?? 50));
+      setPinRequired(String(map.pin_required ?? "true"));
+      return map;
+    },
+    enabled: isAdmin === true,
+  });
+
   const handleFreezeToggle = async (userId: string, currentlyFrozen: boolean) => {
     const { error } = await supabase
       .from("profiles")
@@ -110,6 +139,35 @@ export default function AdminPage() {
       toast.success(`₦${Number(fundAmount).toLocaleString()} credited`);
       setFundUserId("");
       setFundAmount("");
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true);
+    try {
+      const updates = [
+        { key: "data_profit_1_3gb", value: Number(profit1to3) },
+        { key: "data_profit_4gb_plus", value: Number(profit4plus) },
+        { key: "funding_fee_below_5000", value: Number(feeBelow5k) },
+        { key: "funding_fee_above_5000", value: Number(feeAbove5k) },
+        { key: "pin_required", value: pinRequired },
+      ];
+
+      for (const u of updates) {
+        const { error } = await supabase
+          .from("app_settings")
+          .update({ value: u.value as any, updated_at: new Date().toISOString() })
+          .eq("key", u.key);
+        if (error) throw error;
+      }
+
+      toast.success("Settings saved");
+      queryClient.invalidateQueries({ queryKey: ["app-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-app-settings"] });
+    } catch (error: any) {
+      toast.error("Failed to save: " + error.message);
+    } finally {
+      setSettingsSaving(false);
     }
   };
 
@@ -167,6 +225,7 @@ export default function AdminPage() {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="fraud">Fraud Events</TabsTrigger>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="tools">Tools</TabsTrigger>
           </TabsList>
 
@@ -329,6 +388,72 @@ export default function AdminPage() {
               </table>
               {!webhookLogs?.length && <p className="text-center py-8 text-muted-foreground">No webhook logs</p>}
             </div>
+          </TabsContent>
+
+          {/* Settings */}
+          <TabsContent value="settings" className="mt-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary" /> Data Profit Margins
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>1GB – 3GB Profit (₦)</Label>
+                    <Input type="number" value={profit1to3} onChange={(e) => setProfit1to3(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>4GB+ Profit (₦)</Label>
+                    <Input type="number" value={profit4plus} onChange={(e) => setProfit4plus(e.target.value)} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary" /> Wallet Funding Fees
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Fee for ≤₦5,000 (₦)</Label>
+                    <Input type="number" value={feeBelow5k} onChange={(e) => setFeeBelow5k(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Fee for &gt;₦5,000 (₦)</Label>
+                    <Input type="number" value={feeAbove5k} onChange={(e) => setFeeAbove5k(e.target.value)} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary" /> Transaction PIN
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Require PIN for purchases</Label>
+                    <Select value={pinRequired} onValueChange={setPinRequired}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Enabled</SelectItem>
+                        <SelectItem value="false">Disabled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Button onClick={handleSaveSettings} className="mt-4" disabled={settingsSaving}>
+              {settingsSaving && <Loader2 className="animate-spin" />}
+              Save All Settings
+            </Button>
           </TabsContent>
 
           {/* Admin Tools */}

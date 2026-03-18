@@ -34,11 +34,13 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) throw new Error('Unauthorized');
 
-    const { amount } = await req.json();
+    const { amount, fee = 0 } = await req.json();
 
     if (!amount || amount < 100) {
       throw new Error('Minimum amount is ₦100');
     }
+
+    const totalCharge = amount + fee; // User pays amount + fee to Paystack; wallet credited with amount only
 
     // Generate unique reference
     const shortId = user.id.slice(0, 8);
@@ -66,10 +68,11 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        amount: amount * 100, // Paystack uses kobo
+        amount: totalCharge * 100, // Paystack uses kobo; includes fee
         email: user.email,
         reference,
         callback_url: `${req.headers.get('origin') || Deno.env.get('SITE_URL')}/payment-waiting?ref=${reference}`,
+        metadata: { wallet_credit: amount, fee },
       }),
     });
 

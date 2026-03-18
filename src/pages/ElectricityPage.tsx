@@ -11,16 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const discos = [
   { id: "ikeja-electric", name: "Ikeja Electric" },
@@ -76,6 +67,7 @@ export default function ElectricityPage() {
   const [verifyError, setVerifyError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
@@ -434,7 +426,13 @@ export default function ElectricityPage() {
               </div>
 
               <Button
-                onClick={() => setShowConfirm(true)}
+                onClick={() => {
+                  if ((wallet?.balance ?? 0) < Number(amount)) {
+                    toast.error("Insufficient balance. Please fund your wallet.");
+                    return;
+                  }
+                  setShowPin(true);
+                }}
                 className="w-full"
                 variant="wallet"
                 disabled={loading}
@@ -454,26 +452,12 @@ export default function ElectricityPage() {
         )}
       </div>
 
-      {/* Final confirmation dialog */}
-      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Electricity Purchase</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to pay <strong>₦{Number(amount).toLocaleString()}</strong> for electricity on meter{" "}
-              <strong>{meterNo}</strong> ({discoName}).
-              {meterInfo?.customer_name && (
-                <> Customer: <strong>{meterInfo.customer_name}</strong>.</>
-              )}
-              {" "}This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handlePurchase}>Confirm Purchase</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <TransactionPinDialog
+        open={showPin}
+        onOpenChange={setShowPin}
+        onVerified={handlePurchase}
+        description={`Enter your PIN to confirm ₦${Number(amount).toLocaleString()} electricity purchase for meter ${meterNo}.`}
+      />
     </DashboardLayout>
   );
 }

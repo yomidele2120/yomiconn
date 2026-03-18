@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
+import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const providers = [
   { id: "1", name: "MTN" },
@@ -19,7 +20,6 @@ const providers = [
   { id: "4", name: "9mobile" },
 ];
 
-// Default provider source for airtime — can be toggled per-network in future
 const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
 
 export default function AirtimePage() {
@@ -28,26 +28,30 @@ export default function AirtimePage() {
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
   const quickAmounts = [100, 200, 500, 1000];
+  const numAmount = Number(amount) || 0;
 
-  const handlePurchase = async () => {
+  const handlePurchaseClick = () => {
     if (!provider || !phone || !amount) {
       toast.error("Please fill all fields");
       return;
     }
-    const numAmount = Number(amount);
     if (numAmount < 50) {
       toast.error("Minimum amount is ₦50");
       return;
     }
     if ((wallet?.balance ?? 0) < numAmount) {
-      toast.error("Insufficient wallet balance");
+      toast.error("Insufficient balance. Please fund your wallet.");
       return;
     }
+    setShowPin(true);
+  };
 
+  const handlePurchase = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-service", {
@@ -112,13 +116,36 @@ export default function AirtimePage() {
                 </Button>
               ))}
             </div>
-            <Button onClick={handlePurchase} className="w-full" disabled={loading}>
+
+            {numAmount >= 50 && (
+              <div className="p-3 rounded-lg bg-muted space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-bold text-foreground">₦{numAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Wallet Balance</span>
+                  <span className={`font-medium ${(wallet?.balance ?? 0) < numAmount ? 'text-destructive' : 'text-accent'}`}>
+                    ₦{(wallet?.balance ?? 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <Button onClick={handlePurchaseClick} className="w-full" disabled={loading}>
               {loading && <Loader2 className="animate-spin" />}
-              Buy Airtime · ₦{Number(amount || 0).toLocaleString()}
+              Buy Airtime · ₦{numAmount.toLocaleString()}
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      <TransactionPinDialog
+        open={showPin}
+        onOpenChange={setShowPin}
+        onVerified={handlePurchase}
+        description={`Enter your PIN to confirm ₦${numAmount.toLocaleString()} airtime purchase.`}
+      />
     </DashboardLayout>
   );
 }

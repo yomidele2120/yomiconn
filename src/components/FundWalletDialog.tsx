@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAppSettings, getFundingFee } from "@/hooks/useAppSettings";
 
 interface FundWalletDialogProps {
   open: boolean;
@@ -17,11 +18,15 @@ export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialo
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { data: settings } = useAppSettings();
+
+  const numAmount = Number(amount) || 0;
+  const fee = numAmount >= 100 ? getFundingFee(numAmount, settings) : 0;
+  const totalPayment = numAmount + fee;
 
   const quickAmounts = [500, 1000, 2000, 5000];
 
   const handleFund = async () => {
-    const numAmount = Number(amount);
     if (!numAmount || numAmount < 100) {
       toast.error("Minimum amount is ₦100");
       return;
@@ -30,13 +35,12 @@ export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialo
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("initialize-payment", {
-        body: { amount: numAmount },
+        body: { amount: numAmount, fee },
       });
 
       if (error) throw error;
 
       if (data?.authorization_url && data?.reference) {
-        // Open Paystack in new tab and navigate to waiting page
         window.open(data.authorization_url, "_blank");
         onOpenChange(false);
         navigate(`/payment-waiting?ref=${data.reference}`);
@@ -80,9 +84,27 @@ export default function FundWalletDialog({ open, onOpenChange }: FundWalletDialo
               </Button>
             ))}
           </div>
+
+          {numAmount >= 100 && (
+            <div className="rounded-lg bg-muted p-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Funding Amount</span>
+                <span className="font-medium">₦{numAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Transaction Fee</span>
+                <span className="font-medium">₦{fee.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between border-t border-border pt-1 mt-1">
+                <span className="font-semibold">Total Payment</span>
+                <span className="font-bold text-primary">₦{totalPayment.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
           <Button onClick={handleFund} className="w-full" disabled={loading}>
             {loading && <Loader2 className="animate-spin" />}
-            Pay with Paystack
+            Pay ₦{totalPayment.toLocaleString()} with Paystack
           </Button>
         </div>
       </DialogContent>
