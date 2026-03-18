@@ -40,21 +40,11 @@ function parseSizeGB(sizeMB: number): number {
 }
 
 // ─── Tiered profit calculation ───
-function calculateProfit(basePrice: number, planSizeGB: number): number {
-  if (planSizeGB >= 4) return 100;
-  if (planSizeGB >= 1 && planSizeGB <= 3) {
-    if (basePrice < 100) return 200; // special high-profit for low-cost significant plans
-    return 70;
-  }
-  return 0; // sub-1GB or fallback
-}
-
-// ─── Existing CDH markup (kept alongside profit calc) ───
-function applyCdhMarkup(sizeMB: number, price: number): number {
-  if (sizeMB === 500) return price + 50;
-  if (sizeMB >= 1024 && sizeMB < 2048) return price + 70;
-  if (sizeMB >= 4096) return price + 100;
-  return price;
+// ₦30 for 1-3GB, ₦50 for 4GB+
+function calculateProfit(_basePrice: number, planSizeGB: number): number {
+  if (planSizeGB >= 4) return 50;
+  if (planSizeGB >= 1) return 30;
+  return 0; // sub-1GB
 }
 
 async function fetchCdhBundles(networkId: string): Promise<any[]> {
