@@ -13,6 +13,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const cableProviders = [
   { id: "dstv", name: "DSTV" },
@@ -36,13 +37,12 @@ export default function CablePage() {
   const [plans, setPlans] = useState<CablePlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (provider) {
-      fetchPlans(provider);
-    }
+    if (provider) fetchPlans(provider);
   }, [provider]);
 
   const fetchPlans = async (providerId: string) => {
@@ -64,16 +64,20 @@ export default function CablePage() {
 
   const selectedPlan = plans.find((p) => p.id === planId);
 
-  const handlePurchase = async () => {
+  const handlePurchaseClick = () => {
     if (!provider || !smartcard || !planId || !selectedPlan) {
       toast.error("Please fill all fields");
       return;
     }
     if ((wallet?.balance ?? 0) < selectedPlan.price) {
-      toast.error("Insufficient wallet balance");
+      toast.error("Insufficient balance. Please fund your wallet.");
       return;
     }
+    setShowPin(true);
+  };
 
+  const handlePurchase = async () => {
+    if (!selectedPlan) return;
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-service", {
@@ -149,24 +153,37 @@ export default function CablePage() {
             </div>
 
             {selectedPlan && (
-              <div className="p-3 rounded-lg bg-muted text-center space-y-1">
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-heading font-bold text-foreground">
-                  ₦{selectedPlan.price.toLocaleString()}
-                </p>
+              <div className="p-3 rounded-lg bg-muted space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Plan</span>
+                  <span className="font-bold">₦{selectedPlan.price.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Wallet Balance</span>
+                  <span className={`font-medium ${(wallet?.balance ?? 0) < selectedPlan.price ? 'text-destructive' : 'text-accent'}`}>
+                    ₦{(wallet?.balance ?? 0).toLocaleString()}
+                  </span>
+                </div>
                 <Badge variant="outline" className="text-xs">
                   {selectedPlan.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
                 </Badge>
               </div>
             )}
 
-            <Button onClick={handlePurchase} className="w-full" disabled={loading || !selectedPlan}>
+            <Button onClick={handlePurchaseClick} className="w-full" disabled={loading || !selectedPlan}>
               {loading && <Loader2 className="animate-spin" />}
               Subscribe
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      <TransactionPinDialog
+        open={showPin}
+        onOpenChange={setShowPin}
+        onVerified={handlePurchase}
+        description={`Enter your PIN to confirm ₦${selectedPlan?.price.toLocaleString() || '0'} cable subscription.`}
+      />
     </DashboardLayout>
   );
 }

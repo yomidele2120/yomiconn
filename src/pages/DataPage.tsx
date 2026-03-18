@@ -13,6 +13,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const networks = [
   { id: "1", name: "MTN" },
@@ -38,6 +39,7 @@ export default function DataPage() {
   const [bundles, setBundles] = useState<DataBundle[]>([]);
   const [bundlesLoading, setBundlesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
@@ -66,16 +68,20 @@ export default function DataPage() {
 
   const selectedBundle = bundles.find((b) => b.id === bundleId);
 
-  const handlePurchase = async () => {
+  const handlePurchaseClick = () => {
     if (!network || !phone || !bundleId || !selectedBundle) {
       toast.error("Please fill all fields");
       return;
     }
     if ((wallet?.balance ?? 0) < selectedBundle.displayPrice) {
-      toast.error("Insufficient wallet balance");
+      toast.error("Insufficient balance. Please fund your wallet to complete this purchase.");
       return;
     }
+    setShowPin(true);
+  };
 
+  const handlePurchase = async () => {
+    if (!selectedBundle) return;
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("purchase-service", {
@@ -155,24 +161,47 @@ export default function DataPage() {
             </div>
 
             {selectedBundle && (
-              <div className="p-3 rounded-lg bg-muted text-center space-y-1">
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-heading font-bold text-foreground">
-                  ₦{selectedBundle.displayPrice.toLocaleString()}
-                </p>
+              <div className="p-3 rounded-lg bg-muted space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Bundle</span>
+                  <span className="font-medium">{selectedBundle.name}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Price</span>
+                  <span className="font-bold text-lg text-foreground">₦{selectedBundle.displayPrice.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Wallet Balance</span>
+                  <span className={`font-medium ${(wallet?.balance ?? 0) < selectedBundle.displayPrice ? 'text-destructive' : 'text-accent'}`}>
+                    ₦{(wallet?.balance ?? 0).toLocaleString()}
+                  </span>
+                </div>
                 <Badge variant="outline" className="text-xs">
                   {selectedBundle.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
                 </Badge>
               </div>
             )}
 
-            <Button onClick={handlePurchase} className="w-full" disabled={loading || !selectedBundle}>
+            {selectedBundle && (wallet?.balance ?? 0) < selectedBundle.displayPrice && (
+              <p className="text-sm text-destructive text-center">
+                Insufficient balance. Please fund your wallet to complete this purchase.
+              </p>
+            )}
+
+            <Button onClick={handlePurchaseClick} className="w-full" disabled={loading || !selectedBundle}>
               {loading && <Loader2 className="animate-spin" />}
               Buy Data Bundle
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      <TransactionPinDialog
+        open={showPin}
+        onOpenChange={setShowPin}
+        onVerified={handlePurchase}
+        description={`Enter your PIN to confirm ₦${selectedBundle?.displayPrice.toLocaleString() || '0'} data purchase.`}
+      />
     </DashboardLayout>
   );
 }
