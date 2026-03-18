@@ -68,6 +68,7 @@ export default function ElectricityPage() {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
   const discoName = discos.find((d) => d.id === disco)?.name || disco;
