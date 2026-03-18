@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string | null
+          value: Json
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       fraud_events: {
         Row: {
           created_at: string
@@ -182,6 +203,30 @@ export type Database = {
         }
         Relationships: []
       }
+      transaction_pins: {
+        Row: {
+          created_at: string | null
+          id: string
+          pin_hash: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pin_hash: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pin_hash?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -317,6 +362,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_transaction_pin: { Args: { p_user_id: string }; Returns: boolean }
       refund_wallet: {
         Args: { p_amount: number; p_reference: string; p_user_id: string }
         Returns: undefined
