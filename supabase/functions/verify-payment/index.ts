@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 serve(async (req) => {
@@ -74,32 +74,18 @@ serve(async (req) => {
     const verifyData = await verifyRes.json();
 
     if (verifyRes.ok && verifyData.data?.status === 'success') {
-      const amountNaira = verifyData.data.amount / 100;
+      // CRITICAL: Use session.amount (wallet credit), NOT Paystack amount (includes fees)
+      const creditAmount = session.amount;
 
-      // Check if already credited (idempotency)
-      const { data: existing } = await supabaseAdmin
-        .from('wallet_transactions')
-        .select('id')
-        .eq('reference', reference)
-        .single();
+      // Use safe credit function to prevent duplicates
+      const { data: creditResult } = await supabaseAdmin.rpc('credit_wallet_safe', {
+        p_user_id: user.id,
+        p_amount: creditAmount,
+        p_reference: reference,
+      });
 
-      if (!existing) {
-        // Credit wallet atomically
-        await supabaseAdmin.rpc('credit_wallet', {
-          p_user_id: user.id,
-          p_amount: amountNaira,
-        });
-
-        // Record wallet transaction
-        await supabaseAdmin.from('wallet_transactions').insert({
-          user_id: user.id,
-          type: 'credit',
-          amount: amountNaira,
-          reference,
-          description: 'Wallet funded via Paystack',
-          status: 'successful',
-          metadata: { paystack_reference: reference },
-        });
+      if (creditResult?.status === 'duplicate') {
+        console.log('Already credited via webhook, skipping:', reference);
       }
 
       // Update payment session
@@ -108,7 +94,7 @@ serve(async (req) => {
         .update({ status: 'completed' })
         .eq('id', session.id);
 
-      return new Response(JSON.stringify({ status: 'completed', amount: amountNaira }), {
+      return new Response(JSON.stringify({ status: 'completed', amount: creditAmount }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
