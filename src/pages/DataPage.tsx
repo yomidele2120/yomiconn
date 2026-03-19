@@ -90,6 +90,7 @@ export default function DataPage() {
           bundle_id: selectedBundle.provider_plan_id,
           provider_plan_id: selectedBundle.provider_plan_id,
           provider_source: selectedBundle.provider_source,
+          provider_id: network,
           network_id: network,
           phone_number: phone,
           amount: selectedBundle.displayPrice,
