@@ -351,6 +351,10 @@ export type Database = {
         Args: { p_amount: number; p_user_id: string }
         Returns: undefined
       }
+      credit_wallet_safe: {
+        Args: { p_amount: number; p_reference: string; p_user_id: string }
+        Returns: Json
+      }
       deduct_wallet: {
         Args: { p_amount: number; p_reference: string; p_user_id: string }
         Returns: Json
@@ -363,6 +367,10 @@ export type Database = {
         Returns: boolean
       }
       has_transaction_pin: { Args: { p_user_id: string }; Returns: boolean }
+      recalculate_wallet_balance: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       refund_wallet: {
         Args: { p_amount: number; p_reference: string; p_user_id: string }
         Returns: undefined
