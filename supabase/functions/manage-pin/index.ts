@@ -39,6 +39,8 @@ serve(async (req) => {
     const { action, pin, new_pin } = await req.json();
     const salt = user.id;
 
+    console.log(`manage-pin: action=${action}, user=${user.id.slice(0, 8)}`);
+
     switch (action) {
       case 'check': {
         const { data } = await supabaseAdmin
@@ -66,8 +68,12 @@ serve(async (req) => {
         const { error } = await supabaseAdmin
           .from('transaction_pins')
           .insert({ user_id: user.id, pin_hash: pinHash });
-        if (error) throw new Error('Failed to set PIN');
+        if (error) {
+          console.error('Failed to set PIN:', error.message);
+          throw new Error('Failed to set PIN');
+        }
 
+        console.log(`PIN set successfully for user ${user.id.slice(0, 8)}`);
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -75,6 +81,18 @@ serve(async (req) => {
 
       case 'verify': {
         if (!pin) throw new Error('PIN required');
+
+        // Rate limit PIN attempts: max 5 per minute
+        const { data: allowed } = await supabaseAdmin.rpc('check_rate_limit', {
+          p_user_id: user.id,
+          p_action: 'pin_verify',
+          p_max_count: 5,
+          p_window_seconds: 60,
+        });
+        if (!allowed) {
+          throw new Error('Too many PIN attempts. Please wait 1 minute.');
+        }
+
         const pinHash = await hashPin(pin, salt);
         const { data } = await supabaseAdmin
           .from('transaction_pins')
@@ -92,6 +110,18 @@ serve(async (req) => {
         if (new_pin.length < 4 || new_pin.length > 6 || !/^\d+$/.test(new_pin)) {
           throw new Error('New PIN must be 4-6 digits');
         }
+
+        // Rate limit reset attempts
+        const { data: allowed } = await supabaseAdmin.rpc('check_rate_limit', {
+          p_user_id: user.id,
+          p_action: 'pin_reset',
+          p_max_count: 3,
+          p_window_seconds: 300,
+        });
+        if (!allowed) {
+          throw new Error('Too many reset attempts. Please wait 5 minutes.');
+        }
+
         const currentHash = await hashPin(pin, salt);
         const { data } = await supabaseAdmin
           .from('transaction_pins')
@@ -107,6 +137,7 @@ serve(async (req) => {
           .update({ pin_hash: newHash, updated_at: new Date().toISOString() })
           .eq('user_id', user.id);
 
+        console.log(`PIN reset successfully for user ${user.id.slice(0, 8)}`);
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -117,6 +148,7 @@ serve(async (req) => {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('manage-pin error:', message);
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
