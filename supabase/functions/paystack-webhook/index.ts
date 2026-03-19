@@ -37,8 +37,7 @@ serve(async (req) => {
     });
 
     if (event.event === 'charge.success') {
-      const { reference, amount } = event.data;
-      const amountNaira = amount / 100;
+      const { reference } = event.data;
 
       // Verify with Paystack
       const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
@@ -69,39 +68,19 @@ serve(async (req) => {
       }
 
       const userId = session.user_id;
+      // CRITICAL: Use session.amount (the wallet credit amount), NOT the Paystack amount
+      // Paystack amount includes fees, session.amount is what the user should receive
+      const creditAmount = session.amount;
 
-      // Check for duplicate wallet transaction
-      const { data: existing } = await supabaseAdmin
-        .from('wallet_transactions')
-        .select('id')
-        .eq('reference', reference)
-        .single();
+      // Use safe credit function to prevent duplicates
+      const { data: creditResult } = await supabaseAdmin.rpc('credit_wallet_safe', {
+        p_user_id: userId,
+        p_amount: creditAmount,
+        p_reference: reference,
+      });
 
-      if (!existing) {
-        // Credit wallet atomically
-        const { error: walletError } = await supabaseAdmin.rpc('credit_wallet', {
-          p_user_id: userId,
-          p_amount: amountNaira,
-        });
-
-        if (walletError) {
-          // Fallback
-          await supabaseAdmin
-            .from('wallets')
-            .update({ balance: (session.amount || 0) + amountNaira })
-            .eq('user_id', userId);
-        }
-
-        // Record transaction
-        await supabaseAdmin.from('wallet_transactions').insert({
-          user_id: userId,
-          type: 'credit',
-          amount: amountNaira,
-          reference,
-          description: 'Wallet funded via Paystack',
-          status: 'successful',
-          metadata: { paystack_reference: reference },
-        });
+      if (creditResult?.status === 'duplicate') {
+        console.log('Already credited, skipping:', reference);
       }
 
       // Update payment session
@@ -109,6 +88,8 @@ serve(async (req) => {
         .from('payment_sessions')
         .update({ status: 'completed' })
         .eq('id', session.id);
+
+      console.log(`Webhook: credited ₦${creditAmount} for ref ${reference} (user ${userId})`);
     }
 
     return new Response('OK', { status: 200 });

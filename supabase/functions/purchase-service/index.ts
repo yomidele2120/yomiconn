@@ -167,6 +167,25 @@ serve(async (req) => {
     const body = await req.json();
     const { service_type, amount, idempotency_key, provider_source, ...params } = body;
 
+    // Input validation
+    if (!service_type || !amount || amount <= 0) {
+      throw new Error('Invalid service_type or amount');
+    }
+
+    // Server-side balance check
+    const { data: walletData } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (!walletData || walletData.balance < amount) {
+      throw new Error('Insufficient wallet balance');
+    }
+
+    // Verify transaction PIN was checked (PIN verification happens on frontend via manage-pin)
+    // The atomic deduct_wallet below is the real guard
+
     // Determine which provider to use
     const source: string = provider_source || 'cheapdatahub';
 
