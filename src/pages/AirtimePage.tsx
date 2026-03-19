@@ -20,7 +20,7 @@ const providers = [
   { id: "4", name: "9mobile" },
 ];
 
-const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
+const DEFAULT_AIRTIME_PROVIDER = "hadidata";
 
 export default function AirtimePage() {
   const navigate = useNavigate();
