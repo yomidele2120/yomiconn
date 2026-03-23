@@ -127,7 +127,7 @@ const PROVIDERS: Record<string, ProviderConfig> = {
   cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUB_API_KEY', call: callCheapDataHub },
 };
 
-const FALLBACK_ORDER = ['hadidata'];
+const FALLBACK_ORDER = ['cheapdatahub', 'hadidata'];
 
 // ─── Main handler ───
 serve(async (req) => {
@@ -193,7 +193,7 @@ serve(async (req) => {
     const reference = idempotency_key || `YOMI-${dateStr}-${rand}`;
 
     // ── Record transaction as "initiated" (no wallet deduction yet) ──
-    const requestedSource = provider_source || 'hadidata';
+    const requestedSource = provider_source || 'cheapdatahub';
     await supabaseAdmin.from('service_transactions').insert({
       user_id: user.id,
       service_type,
