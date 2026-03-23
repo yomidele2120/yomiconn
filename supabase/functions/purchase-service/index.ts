@@ -127,7 +127,7 @@ const PROVIDERS: Record<string, ProviderConfig> = {
   cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUB_API_KEY', call: callCheapDataHub },
 };
 
-const FALLBACK_ORDER = ['hadidata'];
+const FALLBACK_ORDER = ['cheapdatahub', 'hadidata'];
 
 // ─── Main handler ───
 serve(async (req) => {
