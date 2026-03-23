@@ -20,7 +20,7 @@ const providers = [
   { id: "4", name: "9mobile" },
 ];
 
-const DEFAULT_AIRTIME_PROVIDER = "hadidata";
+const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
 
 export default function AirtimePage() {
   const navigate = useNavigate();
@@ -63,7 +63,11 @@ export default function AirtimePage() {
           provider_source: DEFAULT_AIRTIME_PROVIDER,
         },
       });
-      if (error) throw error;
+      if (error) {
+        const errBody = typeof error === 'object' && 'context' in error ? await (error as any).context?.json?.().catch(() => null) : null;
+        throw new Error(errBody?.error || error.message || "Purchase failed");
+      }
+      if (data?.error) throw new Error(data.error);
       toast.success("Airtime purchase successful!");
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
