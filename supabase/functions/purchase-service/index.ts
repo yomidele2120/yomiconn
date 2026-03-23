@@ -193,7 +193,7 @@ serve(async (req) => {
     const reference = idempotency_key || `YOMI-${dateStr}-${rand}`;
 
     // ── Record transaction as "initiated" (no wallet deduction yet) ──
-    const requestedSource = provider_source || 'hadidata';
+    const requestedSource = provider_source || 'cheapdatahub';
     await supabaseAdmin.from('service_transactions').insert({
       user_id: user.id,
       service_type,
