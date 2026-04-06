@@ -197,6 +197,51 @@ export default function AdminPage() {
     else { toast.success("Provider removed"); refetchProviders(); }
   };
 
+  // ── Reseller API Key handlers ──
+  const generateApiKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const segments = Array.from({ length: 4 }, () =>
+      Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    );
+    return `yk_${segments.join('_')}`;
+  };
+
+  const handleCreateResellerKey = async () => {
+    if (!newPartnerName.trim()) { toast.error("Partner name is required"); return; }
+    const apiKey = generateApiKey();
+    const { error } = await supabase.from("reseller_api_keys").insert({
+      api_key: apiKey,
+      partner_name: newPartnerName.trim(),
+      rate_limit_per_minute: Number(newPartnerRateLimit) || 30,
+      created_by: user!.id,
+    } as any);
+    if (error) { toast.error("Failed: " + error.message); return; }
+    toast.success("API key created! Copy it now — it won't be shown again in full.");
+    setNewPartnerName("");
+    setNewPartnerRateLimit("30");
+    setVisibleKeys(prev => ({ ...prev, [apiKey]: true }));
+    refetchResellerKeys();
+  };
+
+  const handleToggleResellerKey = async (id: string, currentActive: boolean) => {
+    const { error } = await supabase.from("reseller_api_keys").update({ is_active: !currentActive } as any).eq("id", id);
+    if (error) toast.error("Failed to update");
+    else { toast.success(`Key ${!currentActive ? "activated" : "deactivated"}`); refetchResellerKeys(); }
+  };
+
+  const handleDeleteResellerKey = async (id: string) => {
+    const { error } = await supabase.from("reseller_api_keys").delete().eq("id", id);
+    if (error) toast.error("Failed to delete");
+    else { toast.success("Key deleted"); refetchResellerKeys(); }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
+
+  const maskKey = (key: string) => key.slice(0, 6) + '•'.repeat(20) + key.slice(-4);
+
   const handleSaveSettings = async () => {
     setSettingsSaving(true);
     try {
