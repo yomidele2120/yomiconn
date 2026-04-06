@@ -158,6 +158,31 @@ export default function AdminPage() {
     }
   };
 
+  const handleToggleProvider = async (id: string, currentActive: boolean) => {
+    const { error } = await supabase.from("api_providers").update({ is_active: !currentActive } as any).eq("id", id);
+    if (error) toast.error("Failed to update provider");
+    else { toast.success(`Provider ${!currentActive ? "activated" : "deactivated"}`); refetchProviders(); }
+  };
+
+  const handleUpdateProviderUrl = async (id: string, url: string) => {
+    const { error } = await supabase.from("api_providers").update({ base_url: url } as any).eq("id", id);
+    if (error) toast.error("Failed to update URL");
+    else { toast.success("Base URL updated"); refetchProviders(); }
+  };
+
+  const handleAddProvider = async () => {
+    if (!newProviderKey || !newProviderName) { toast.error("Key and name required"); return; }
+    const { error } = await supabase.from("api_providers").insert({ provider_key: newProviderKey, display_name: newProviderName, base_url: newProviderUrl, is_active: false } as any);
+    if (error) toast.error("Failed to add: " + error.message);
+    else { toast.success("Provider added"); setNewProviderKey(""); setNewProviderName(""); setNewProviderUrl(""); refetchProviders(); }
+  };
+
+  const handleDeleteProvider = async (id: string) => {
+    const { error } = await supabase.from("api_providers").delete().eq("id", id);
+    if (error) toast.error("Failed to delete");
+    else { toast.success("Provider removed"); refetchProviders(); }
+  };
+
   const handleSaveSettings = async () => {
     setSettingsSaving(true);
     try {
