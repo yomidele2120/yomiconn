@@ -268,6 +268,7 @@ export default function AdminPage() {
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="tools">Tools</TabsTrigger>
+            <TabsTrigger value="api-config">API Config</TabsTrigger>
           </TabsList>
 
           {/* Service Transactions */}
