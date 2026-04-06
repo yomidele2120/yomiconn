@@ -107,6 +107,16 @@ export default function AdminPage() {
     enabled: isAdmin === true,
   });
 
+  // Load reseller API keys
+  const { data: resellerKeys, refetch: refetchResellerKeys } = useQuery({
+    queryKey: ["admin-reseller-keys"],
+    queryFn: async () => {
+      const { data } = await supabase.from("reseller_api_keys").select("*").order("created_at", { ascending: false });
+      return (data as any[]) || [];
+    },
+    enabled: isAdmin === true,
+  });
+
   // Load settings
   const { data: appSettings } = useQuery({
     queryKey: ["admin-app-settings"],
@@ -116,7 +126,6 @@ export default function AdminPage() {
       for (const row of data || []) {
         map[row.key] = row.value;
       }
-      // Initialize form
       setProfit1to3(String(map.data_profit_1_3gb ?? 30));
       setProfit4plus(String(map.data_profit_4gb_plus ?? 50));
       setFeeBelow5k(String(map.funding_fee_below_5000 ?? 35));
