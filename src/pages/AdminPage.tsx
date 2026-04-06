@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2, Globe, Trash2, Plus } from "lucide-react";
+import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2, Globe, Trash2, Plus, Key, Copy, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
