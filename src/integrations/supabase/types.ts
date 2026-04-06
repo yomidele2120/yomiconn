@@ -191,6 +191,48 @@ export type Database = {
         }
         Relationships: []
       }
+      reseller_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          partner_name: string
+          permissions: string[]
+          rate_limit_per_minute: number
+          total_requests: number
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          partner_name: string
+          permissions?: string[]
+          rate_limit_per_minute?: number
+          total_requests?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          partner_name?: string
+          permissions?: string[]
+          rate_limit_per_minute?: number
+          total_requests?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       service_transactions: {
         Row: {
           amount: number
@@ -405,6 +447,7 @@ export type Database = {
         Args: { p_amount: number; p_reference: string; p_user_id: string }
         Returns: undefined
       }
+      validate_api_key: { Args: { p_api_key: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2, Globe, Trash2, Plus } from "lucide-react";
+import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2, Globe, Trash2, Plus, Key, Copy, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -35,6 +35,11 @@ export default function AdminPage() {
   const [newProviderKey, setNewProviderKey] = useState("");
   const [newProviderName, setNewProviderName] = useState("");
   const [newProviderUrl, setNewProviderUrl] = useState("");
+
+  // Reseller API keys state
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerRateLimit, setNewPartnerRateLimit] = useState("30");
+  const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
 
   const { data: isAdmin, isLoading: roleLoading } = useQuery({
     queryKey: ["admin-check", user?.id],
@@ -102,6 +107,16 @@ export default function AdminPage() {
     enabled: isAdmin === true,
   });
 
+  // Load reseller API keys
+  const { data: resellerKeys, refetch: refetchResellerKeys } = useQuery({
+    queryKey: ["admin-reseller-keys"],
+    queryFn: async () => {
+      const { data } = await supabase.from("reseller_api_keys").select("*").order("created_at", { ascending: false });
+      return (data as any[]) || [];
+    },
+    enabled: isAdmin === true,
+  });
+
   // Load settings
   const { data: appSettings } = useQuery({
     queryKey: ["admin-app-settings"],
@@ -111,7 +126,6 @@ export default function AdminPage() {
       for (const row of data || []) {
         map[row.key] = row.value;
       }
-      // Initialize form
       setProfit1to3(String(map.data_profit_1_3gb ?? 30));
       setProfit4plus(String(map.data_profit_4gb_plus ?? 50));
       setFeeBelow5k(String(map.funding_fee_below_5000 ?? 35));
@@ -182,6 +196,51 @@ export default function AdminPage() {
     if (error) toast.error("Failed to delete");
     else { toast.success("Provider removed"); refetchProviders(); }
   };
+
+  // ── Reseller API Key handlers ──
+  const generateApiKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const segments = Array.from({ length: 4 }, () =>
+      Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    );
+    return `yk_${segments.join('_')}`;
+  };
+
+  const handleCreateResellerKey = async () => {
+    if (!newPartnerName.trim()) { toast.error("Partner name is required"); return; }
+    const apiKey = generateApiKey();
+    const { error } = await supabase.from("reseller_api_keys").insert({
+      api_key: apiKey,
+      partner_name: newPartnerName.trim(),
+      rate_limit_per_minute: Number(newPartnerRateLimit) || 30,
+      created_by: user!.id,
+    } as any);
+    if (error) { toast.error("Failed: " + error.message); return; }
+    toast.success("API key created! Copy it now — it won't be shown again in full.");
+    setNewPartnerName("");
+    setNewPartnerRateLimit("30");
+    setVisibleKeys(prev => ({ ...prev, [apiKey]: true }));
+    refetchResellerKeys();
+  };
+
+  const handleToggleResellerKey = async (id: string, currentActive: boolean) => {
+    const { error } = await supabase.from("reseller_api_keys").update({ is_active: !currentActive } as any).eq("id", id);
+    if (error) toast.error("Failed to update");
+    else { toast.success(`Key ${!currentActive ? "activated" : "deactivated"}`); refetchResellerKeys(); }
+  };
+
+  const handleDeleteResellerKey = async (id: string) => {
+    const { error } = await supabase.from("reseller_api_keys").delete().eq("id", id);
+    if (error) toast.error("Failed to delete");
+    else { toast.success("Key deleted"); refetchResellerKeys(); }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
+  };
+
+  const maskKey = (key: string) => key.slice(0, 6) + '•'.repeat(20) + key.slice(-4);
 
   const handleSaveSettings = async () => {
     setSettingsSaving(true);
@@ -269,6 +328,7 @@ export default function AdminPage() {
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="tools">Tools</TabsTrigger>
             <TabsTrigger value="api-config">API Config</TabsTrigger>
+            <TabsTrigger value="reseller-keys">Reseller Keys</TabsTrigger>
           </TabsList>
 
           {/* Service Transactions */}
@@ -585,6 +645,100 @@ export default function AdminPage() {
                     <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> HADI_DATA_API</li>
                     <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> BLESSDATA_API_KEY</li>
                     <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> PAYSTACK_SECRET_KEY</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Reseller API Keys */}
+          <TabsContent value="reseller-keys" className="mt-4">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Key className="w-5 h-5 text-primary" /> Generate New API Key
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Partner / Website Name</Label>
+                    <Input placeholder="e.g. MyPartnerSite" value={newPartnerName} onChange={(e) => setNewPartnerName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Rate Limit (requests/min)</Label>
+                    <Input type="number" value={newPartnerRateLimit} onChange={(e) => setNewPartnerRateLimit(e.target.value)} min={1} max={1000} />
+                  </div>
+                  <Button onClick={handleCreateResellerKey}><Plus className="w-4 h-4 mr-1" /> Generate API Key</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Key className="w-5 h-5 text-primary" /> Active API Keys
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(resellerKeys || []).map((k: any) => (
+                    <div key={k.id} className="p-3 rounded-lg border border-border space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Switch checked={k.is_active} onCheckedChange={() => handleToggleResellerKey(k.id, k.is_active)} />
+                          <div>
+                            <p className="font-medium text-foreground">{k.partner_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Created {format(new Date(k.created_at), "MMM d, yyyy")} · {k.total_requests?.toLocaleString() || 0} requests
+                              {k.last_used_at && ` · Last used ${format(new Date(k.last_used_at), "MMM d, HH:mm")}`}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={k.is_active ? "default" : "outline"}>{k.is_active ? "Active" : "Disabled"}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-muted px-2 py-1.5 rounded font-mono break-all">
+                          {visibleKeys[k.api_key] ? k.api_key : maskKey(k.api_key)}
+                        </code>
+                        <Button variant="ghost" size="icon" onClick={() => setVisibleKeys(prev => ({ ...prev, [k.api_key]: !prev[k.api_key] }))}>
+                          {visibleKeys[k.api_key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(k.api_key)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteResellerKey(k.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Rate limit: {k.rate_limit_per_minute} req/min · Permissions: {(k.permissions || []).join(', ')}</p>
+                    </div>
+                  ))}
+                  {!resellerKeys?.length && <p className="text-center py-4 text-muted-foreground">No API keys generated yet</p>}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" /> API Documentation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm space-y-2 text-muted-foreground">
+                  <p>External websites can use these API keys to purchase services via your platform.</p>
+                  <p className="font-medium text-foreground">Base URL:</p>
+                  <code className="block bg-muted px-3 py-2 rounded text-xs font-mono break-all">
+                    {`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/reseller-api`}
+                  </code>
+                  <p className="font-medium text-foreground mt-3">Headers:</p>
+                  <code className="block bg-muted px-3 py-2 rounded text-xs font-mono">
+                    X-API-Key: yk_your_api_key_here
+                  </code>
+                  <p className="font-medium text-foreground mt-3">Endpoints:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_airtime', phone_number, network_id, amount }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_data', phone_number, network_id, plan_id }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_cable', smartcard_no, plan_id }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_electricity', meter_no, disco, amount, meter_type }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'check_balance' }"}</code></li>
                   </ul>
                 </CardContent>
               </Card>
