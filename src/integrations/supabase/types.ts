@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_providers: {
+        Row: {
+          base_url: string
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          provider_key: string
+          updated_at: string
+        }
+        Insert: {
+          base_url?: string
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          provider_key: string
+          updated_at?: string
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          provider_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           id: string
