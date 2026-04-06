@@ -650,6 +650,100 @@ export default function AdminPage() {
               </Card>
             </div>
           </TabsContent>
+
+          {/* Reseller API Keys */}
+          <TabsContent value="reseller-keys" className="mt-4">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Key className="w-5 h-5 text-primary" /> Generate New API Key
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Partner / Website Name</Label>
+                    <Input placeholder="e.g. MyPartnerSite" value={newPartnerName} onChange={(e) => setNewPartnerName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Rate Limit (requests/min)</Label>
+                    <Input type="number" value={newPartnerRateLimit} onChange={(e) => setNewPartnerRateLimit(e.target.value)} min={1} max={1000} />
+                  </div>
+                  <Button onClick={handleCreateResellerKey}><Plus className="w-4 h-4 mr-1" /> Generate API Key</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Key className="w-5 h-5 text-primary" /> Active API Keys
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(resellerKeys || []).map((k: any) => (
+                    <div key={k.id} className="p-3 rounded-lg border border-border space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Switch checked={k.is_active} onCheckedChange={() => handleToggleResellerKey(k.id, k.is_active)} />
+                          <div>
+                            <p className="font-medium text-foreground">{k.partner_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Created {format(new Date(k.created_at), "MMM d, yyyy")} · {k.total_requests?.toLocaleString() || 0} requests
+                              {k.last_used_at && ` · Last used ${format(new Date(k.last_used_at), "MMM d, HH:mm")}`}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant={k.is_active ? "default" : "outline"}>{k.is_active ? "Active" : "Disabled"}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-muted px-2 py-1.5 rounded font-mono break-all">
+                          {visibleKeys[k.api_key] ? k.api_key : maskKey(k.api_key)}
+                        </code>
+                        <Button variant="ghost" size="icon" onClick={() => setVisibleKeys(prev => ({ ...prev, [k.api_key]: !prev[k.api_key] }))}>
+                          {visibleKeys[k.api_key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(k.api_key)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteResellerKey(k.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Rate limit: {k.rate_limit_per_minute} req/min · Permissions: {(k.permissions || []).join(', ')}</p>
+                    </div>
+                  ))}
+                  {!resellerKeys?.length && <p className="text-center py-4 text-muted-foreground">No API keys generated yet</p>}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" /> API Documentation
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm space-y-2 text-muted-foreground">
+                  <p>External websites can use these API keys to purchase services via your platform.</p>
+                  <p className="font-medium text-foreground">Base URL:</p>
+                  <code className="block bg-muted px-3 py-2 rounded text-xs font-mono break-all">
+                    {`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/reseller-api`}
+                  </code>
+                  <p className="font-medium text-foreground mt-3">Headers:</p>
+                  <code className="block bg-muted px-3 py-2 rounded text-xs font-mono">
+                    X-API-Key: yk_your_api_key_here
+                  </code>
+                  <p className="font-medium text-foreground mt-3">Endpoints:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_airtime', phone_number, network_id, amount }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_data', phone_number, network_id, plan_id }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_cable', smartcard_no, plan_id }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'buy_electricity', meter_no, disco, amount, meter_type }"}</code></li>
+                    <li><code className="text-xs">POST /</code> with <code className="text-xs">{"{ action: 'check_balance' }"}</code></li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
     </div>
