@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2 } from "lucide-react";
+import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2, Globe, Trash2, Plus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 export default function AdminPage() {
@@ -29,6 +30,11 @@ export default function AdminPage() {
   const [feeBelow5k, setFeeBelow5k] = useState("");
   const [feeAbove5k, setFeeAbove5k] = useState("");
   const [pinRequired, setPinRequired] = useState("true");
+
+  // API providers state
+  const [newProviderKey, setNewProviderKey] = useState("");
+  const [newProviderName, setNewProviderName] = useState("");
+  const [newProviderUrl, setNewProviderUrl] = useState("");
 
   const { data: isAdmin, isLoading: roleLoading } = useQuery({
     queryKey: ["admin-check", user?.id],
@@ -81,6 +87,16 @@ export default function AdminPage() {
     queryKey: ["admin-profiles"],
     queryFn: async () => {
       const { data } = await supabase.from("profiles").select("user_id, email, full_name, is_frozen, frozen_reason, frozen_at").order("created_at", { ascending: false }).limit(100);
+      return data || [];
+    },
+    enabled: isAdmin === true,
+  });
+
+  // Load API providers
+  const { data: apiProviders, refetch: refetchProviders } = useQuery({
+    queryKey: ["admin-api-providers"],
+    queryFn: async () => {
+      const { data } = await supabase.from("api_providers").select("*").order("created_at", { ascending: true });
       return data || [];
     },
     enabled: isAdmin === true,
