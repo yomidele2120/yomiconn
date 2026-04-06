@@ -513,6 +513,83 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* API Config */}
+          <TabsContent value="api-config" className="mt-4">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" /> API Providers
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(apiProviders || []).map((p: any) => (
+                    <div key={p.id} className="flex flex-col gap-2 p-3 rounded-lg border border-border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Switch checked={p.is_active} onCheckedChange={() => handleToggleProvider(p.id, p.is_active)} />
+                          <div>
+                            <p className="font-medium text-foreground">{p.display_name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{p.provider_key}</p>
+                          </div>
+                        </div>
+                        <Badge variant={p.is_active ? "default" : "outline"}>{p.is_active ? "Active" : "Inactive"}</Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          defaultValue={p.base_url}
+                          placeholder="Base URL"
+                          className="font-mono text-xs"
+                          onBlur={(e) => {
+                            if (e.target.value !== p.base_url) handleUpdateProviderUrl(p.id, e.target.value);
+                          }}
+                        />
+                        <Button variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => handleDeleteProvider(p.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {!apiProviders?.length && <p className="text-center py-4 text-muted-foreground">No providers configured</p>}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-primary" /> Add Provider
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input placeholder="Provider key (e.g. cheapdatahub)" value={newProviderKey} onChange={(e) => setNewProviderKey(e.target.value)} />
+                  <Input placeholder="Display name" value={newProviderName} onChange={(e) => setNewProviderName(e.target.value)} />
+                  <Input placeholder="Base URL" value={newProviderUrl} onChange={(e) => setNewProviderUrl(e.target.value)} />
+                  <Button onClick={handleAddProvider}><Plus className="w-4 h-4 mr-1" /> Add Provider</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg font-heading flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-primary" /> API Keys
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    API keys are stored securely as backend secrets. To update API keys, contact the system administrator or use the backend secrets manager. Current configured keys:
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> CHEAPDATAHUB_API_KEY</li>
+                    <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> HADI_DATA_API</li>
+                    <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> BLESSDATA_API_KEY</li>
+                    <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> PAYSTACK_SECRET_KEY</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
         </Tabs>
       </main>
     </div>
