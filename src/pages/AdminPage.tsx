@@ -36,6 +36,11 @@ export default function AdminPage() {
   const [newProviderName, setNewProviderName] = useState("");
   const [newProviderUrl, setNewProviderUrl] = useState("");
 
+  // Reseller API keys state
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerRateLimit, setNewPartnerRateLimit] = useState("30");
+  const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
+
   const { data: isAdmin, isLoading: roleLoading } = useQuery({
     queryKey: ["admin-check", user?.id],
     queryFn: async () => {
