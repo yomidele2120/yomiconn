@@ -328,6 +328,7 @@ export default function AdminPage() {
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="tools">Tools</TabsTrigger>
             <TabsTrigger value="api-config">API Config</TabsTrigger>
+            <TabsTrigger value="reseller-keys">Reseller Keys</TabsTrigger>
           </TabsList>
 
           {/* Service Transactions */}
