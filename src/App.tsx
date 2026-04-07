@@ -17,6 +17,7 @@ import CablePage from "./pages/CablePage";
 import AdminPage from "./pages/AdminPage";
 import PaymentWaitingPage from "./pages/PaymentWaitingPage";
 import NotFound from "./pages/NotFound";
+import InAppChatbot from "./components/InAppChatbot";
 
 const queryClient = new QueryClient();
 
