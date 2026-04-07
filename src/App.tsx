@@ -17,6 +17,7 @@ import CablePage from "./pages/CablePage";
 import AdminPage from "./pages/AdminPage";
 import PaymentWaitingPage from "./pages/PaymentWaitingPage";
 import NotFound from "./pages/NotFound";
+import InAppChatbot from "./components/InAppChatbot";
 
 const queryClient = new QueryClient();
 
@@ -39,8 +40,9 @@ const App = () => (
             <Route path="/services/cable" element={<ProtectedRoute><CablePage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="/payment-waiting" element={<ProtectedRoute><PaymentWaitingPage /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
+          <Route path="*" element={<NotFound />} />
           </Routes>
+          <InAppChatbot />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
