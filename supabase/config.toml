@@ -2,3 +2,6 @@ project_id = "tbjqqzgvnatpebwhkojm"
 
 [functions.paystack-webhook]
 verify_jwt = false
+
+[functions.reseller-api]
+verify_jwt = false
