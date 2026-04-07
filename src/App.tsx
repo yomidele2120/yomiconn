@@ -40,8 +40,9 @@ const App = () => (
             <Route path="/services/cable" element={<ProtectedRoute><CablePage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="/payment-waiting" element={<ProtectedRoute><PaymentWaitingPage /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
+          <Route path="*" element={<NotFound />} />
           </Routes>
+          <InAppChatbot />
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>
