@@ -18,6 +18,7 @@ import DataPage from "./pages/DataPage";
 import ElectricityPage from "./pages/ElectricityPage";
 import CablePage from "./pages/CablePage";
 import AdminPage from "./pages/AdminPage";
+import AdminLoginPage from "./pages/AdminLoginPage";
 import PaymentWaitingPage from "./pages/PaymentWaitingPage";
 import NotFound from "./pages/NotFound";
 import InAppChatbot from "./components/InAppChatbot";
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/services/data" element={<ProtectedRoute><DataPage /></ProtectedRoute>} />
             <Route path="/services/electricity" element={<ProtectedRoute><ElectricityPage /></ProtectedRoute>} />
             <Route path="/services/cable" element={<ProtectedRoute><CablePage /></ProtectedRoute>} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
             <Route path="/payment-waiting" element={<ProtectedRoute><PaymentWaitingPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

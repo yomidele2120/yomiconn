@@ -1,24 +1,19 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Tv } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const cableProviders = [
-  { id: "dstv", name: "DSTV" },
-  { id: "gotv", name: "GOtv" },
-  { id: "startimes", name: "Startimes" },
+  { id: "dstv", name: "DSTV", color: "bg-secondary text-white" },
+  { id: "gotv", name: "GOtv", color: "bg-success text-white" },
+  { id: "startimes", name: "Startimes", color: "bg-warning text-white" },
 ];
 
 interface CablePlan {
@@ -40,6 +35,7 @@ export default function CablePage() {
   const [showPin, setShowPin] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
+  const balance = wallet?.balance ?? 0;
 
   useEffect(() => {
     if (provider) fetchPlans(provider);
@@ -65,14 +61,8 @@ export default function CablePage() {
   const selectedPlan = plans.find((p) => p.id === planId);
 
   const handlePurchaseClick = () => {
-    if (!provider || !smartcard || !planId || !selectedPlan) {
-      toast.error("Please fill all fields");
-      return;
-    }
-    if ((wallet?.balance ?? 0) < selectedPlan.price) {
-      toast.error("Insufficient balance. Please fund your wallet.");
-      return;
-    }
+    if (!provider || !smartcard || !selectedPlan) return toast.error("Please fill all fields");
+    if (balance < selectedPlan.price) return toast.error("Insufficient balance. Please fund your wallet.");
     setShowPin(true);
   };
 
@@ -109,77 +99,95 @@ export default function CablePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="space-y-5 max-w-lg mx-auto pb-24">
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg font-heading">
-              <Tv className="w-5 h-5 text-destructive" /> Cable TV Subscription
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Cable Provider</Label>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
-                <SelectContent>
-                  {cableProviders.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl wallet-gradient flex items-center justify-center shadow-premium">
+            <Tv className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Cable TV</h1>
+            <p className="text-xs text-muted-foreground">Wallet balance ₦{balance.toLocaleString()}</p>
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label>Smartcard Number</Label>
-              <Input placeholder="Enter smartcard number" value={smartcard} onChange={(e) => setSmartcard(e.target.value)} />
+        <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
+          <div>
+            <p className="label-eyebrow mb-3">Select Provider</p>
+            <div className="grid grid-cols-3 gap-2">
+              {cableProviders.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProvider(p.id)}
+                  className={`h-16 rounded-2xl flex items-center justify-center text-xs font-semibold border-2 transition ${
+                    provider === p.id ? `${p.color} border-transparent shadow-premium scale-[1.02]` : "bg-muted/60 border-transparent hover:bg-muted"
+                  }`}
+                >
+                  {p.name}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Subscription Plan</Label>
-              {plansLoading ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <Select value={planId} onValueChange={setPlanId} disabled={!plans.length}>
-                  <SelectTrigger><SelectValue placeholder={plans.length ? "Select plan" : "Select provider first"} /></SelectTrigger>
-                  <SelectContent>
-                    {plans.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} — ₦{p.price.toLocaleString()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+          <div>
+            <p className="label-eyebrow mb-2">Smartcard / IUC Number</p>
+            <Input
+              placeholder="Enter smartcard number"
+              value={smartcard}
+              onChange={(e) => setSmartcard(e.target.value.replace(/\s/g, ""))}
+              className="h-14 rounded-2xl bg-muted/60 border-transparent text-base"
+            />
+          </div>
 
-            {selectedPlan && (
-              <div className="p-3 rounded-lg bg-muted space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Plan</span>
-                  <span className="font-bold">₦{selectedPlan.price.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wallet Balance</span>
-                  <span className={`font-medium ${(wallet?.balance ?? 0) < selectedPlan.price ? 'text-destructive' : 'text-accent'}`}>
-                    ₦{(wallet?.balance ?? 0).toLocaleString()}
-                  </span>
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  {selectedPlan.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
-                </Badge>
+          <div>
+            <p className="label-eyebrow mb-2">Subscription Plan</p>
+            {plansLoading ? (
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 rounded-2xl" />)}
+              </div>
+            ) : plans.length === 0 ? (
+              <div className="rounded-2xl bg-muted/60 p-6 text-center text-sm text-muted-foreground">
+                {provider ? "No plans available" : "Pick a provider first"}
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                {plans.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPlanId(p.id)}
+                    className={`w-full flex items-center justify-between rounded-2xl p-4 border-2 transition ${
+                      planId === p.id ? "border-primary bg-primary/5 shadow-premium" : "border-transparent bg-muted/60 hover:bg-muted"
+                    }`}
+                  >
+                    <span className="text-sm font-semibold">{p.name}</span>
+                    <span className="text-primary font-bold">₦{p.price.toLocaleString()}</span>
+                  </button>
+                ))}
               </div>
             )}
+          </div>
 
-            <Button onClick={handlePurchaseClick} className="w-full" disabled={loading || !selectedPlan}>
-              {loading && <Loader2 className="animate-spin" />}
-              Subscribe
-            </Button>
-          </CardContent>
-        </Card>
+          {selectedPlan && (
+            <div className={`rounded-2xl p-3 text-sm flex justify-between ${balance < selectedPlan.price ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
+              <span>{balance < selectedPlan.price ? "Insufficient balance" : "Balance after purchase"}</span>
+              <span className="font-bold">₦{Math.max(0, balance - selectedPlan.price).toLocaleString()}</span>
+            </div>
+          )}
+
+          <button
+            onClick={handlePurchaseClick}
+            disabled={loading || !selectedPlan}
+            className="w-full h-[52px] rounded-xl wallet-gradient text-white font-semibold shadow-premium active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {selectedPlan ? `Subscribe · ₦${selectedPlan.price.toLocaleString()}` : "Select a plan"}
+          </button>
+        </div>
       </div>
 
       <TransactionPinDialog

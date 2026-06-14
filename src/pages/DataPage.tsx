@@ -1,25 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const networks = [
-  { id: "1", name: "MTN" },
-  { id: "2", name: "Airtel" },
-  { id: "3", name: "Glo" },
-  { id: "4", name: "9mobile" },
+  { id: "1", name: "MTN", color: "bg-warning text-white" },
+  { id: "2", name: "Airtel", color: "bg-destructive text-white" },
+  { id: "3", name: "Glo", color: "bg-success text-white" },
+  { id: "4", name: "9mobile", color: "bg-foreground text-white" },
 ];
 
 interface DataBundle {
@@ -42,11 +37,10 @@ export default function DataPage() {
   const [showPin, setShowPin] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
+  const balance = wallet?.balance ?? 0;
 
   useEffect(() => {
-    if (network) {
-      fetchBundles(network);
-    }
+    if (network) fetchBundles(network);
   }, [network]);
 
   const fetchBundles = async (networkId: string) => {
@@ -58,7 +52,7 @@ export default function DataPage() {
       });
       if (error) throw error;
       setBundles(data?.bundles ?? []);
-    } catch (error: any) {
+    } catch {
       toast.error("Failed to load bundles");
       setBundles([]);
     } finally {
@@ -69,14 +63,8 @@ export default function DataPage() {
   const selectedBundle = bundles.find((b) => b.id === bundleId);
 
   const handlePurchaseClick = () => {
-    if (!network || !phone || !bundleId || !selectedBundle) {
-      toast.error("Please fill all fields");
-      return;
-    }
-    if ((wallet?.balance ?? 0) < selectedBundle.displayPrice) {
-      toast.error("Insufficient balance. Please fund your wallet to complete this purchase.");
-      return;
-    }
+    if (!network || !phone || !selectedBundle) return toast.error("Please fill all fields");
+    if (balance < selectedBundle.displayPrice) return toast.error("Insufficient balance. Please fund your wallet.");
     setShowPin(true);
   };
 
@@ -115,90 +103,99 @@ export default function DataPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="space-y-5 max-w-lg mx-auto pb-24">
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg font-heading">
-              <Wifi className="w-5 h-5 text-accent" /> Buy Data Bundle
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Network</Label>
-              <Select value={network} onValueChange={setNetwork}>
-                <SelectTrigger><SelectValue placeholder="Select network" /></SelectTrigger>
-                <SelectContent>
-                  {networks.map((n) => (
-                    <SelectItem key={n.id} value={n.id}>{n.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl wallet-gradient flex items-center justify-center shadow-premium">
+            <Wifi className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Buy Data Bundle</h1>
+            <p className="text-xs text-muted-foreground">Wallet balance ₦{balance.toLocaleString()}</p>
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input type="tel" placeholder="08012345678" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={11} />
+        <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
+          <div>
+            <p className="label-eyebrow mb-3">Select Network</p>
+            <div className="grid grid-cols-4 gap-2">
+              {networks.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => setNetwork(n.id)}
+                  className={`h-16 rounded-2xl flex items-center justify-center text-xs font-semibold border-2 transition ${
+                    network === n.id ? `${n.color} border-transparent shadow-premium scale-[1.02]` : "bg-muted/60 border-transparent hover:bg-muted"
+                  }`}
+                >
+                  {n.name}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Data Bundle</Label>
-              {bundlesLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : (
-                <Select value={bundleId} onValueChange={setBundleId} disabled={!bundles.length}>
-                  <SelectTrigger><SelectValue placeholder={bundles.length ? "Select bundle" : "Select a network first"} /></SelectTrigger>
-                  <SelectContent>
-                    {bundles.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name} — ₦{b.displayPrice.toLocaleString()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+          <div>
+            <p className="label-eyebrow mb-2">Phone Number</p>
+            <Input
+              type="tel"
+              placeholder="08012345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              maxLength={11}
+              className="h-14 rounded-2xl bg-muted/60 border-transparent text-base"
+            />
+          </div>
 
-            {selectedBundle && (
-              <div className="p-3 rounded-lg bg-muted space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Bundle</span>
-                  <span className="font-medium">{selectedBundle.name}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Price</span>
-                  <span className="font-bold text-lg text-foreground">₦{selectedBundle.displayPrice.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wallet Balance</span>
-                  <span className={`font-medium ${(wallet?.balance ?? 0) < selectedBundle.displayPrice ? 'text-destructive' : 'text-accent'}`}>
-                    ₦{(wallet?.balance ?? 0).toLocaleString()}
-                  </span>
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  {selectedBundle.provider_source === 'blessdata' ? 'BlessData' : 'CheapDataHub'}
-                </Badge>
+          <div>
+            <p className="label-eyebrow mb-2">Choose Bundle</p>
+            {bundlesLoading ? (
+              <div className="grid grid-cols-2 gap-2">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}
+              </div>
+            ) : bundles.length === 0 ? (
+              <div className="rounded-2xl bg-muted/60 p-6 text-center text-sm text-muted-foreground">
+                {network ? "No bundles available" : "Pick a network first"}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+                {bundles.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setBundleId(b.id)}
+                    className={`rounded-2xl p-3 text-left border-2 transition ${
+                      bundleId === b.id
+                        ? "border-primary bg-primary/5 shadow-premium"
+                        : "border-transparent bg-muted/60 hover:bg-muted"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold leading-tight">{b.name}</div>
+                    <div className="text-primary font-bold mt-1">₦{b.displayPrice.toLocaleString()}</div>
+                  </button>
+                ))}
               </div>
             )}
+          </div>
 
-            {selectedBundle && (wallet?.balance ?? 0) < selectedBundle.displayPrice && (
-              <p className="text-sm text-destructive text-center">
-                Insufficient balance. Please fund your wallet to complete this purchase.
-              </p>
-            )}
+          {selectedBundle && (
+            <div className={`rounded-2xl p-3 text-sm flex justify-between ${balance < selectedBundle.displayPrice ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
+              <span>{balance < selectedBundle.displayPrice ? "Insufficient balance" : "Balance after purchase"}</span>
+              <span className="font-bold">₦{Math.max(0, balance - selectedBundle.displayPrice).toLocaleString()}</span>
+            </div>
+          )}
 
-            <Button onClick={handlePurchaseClick} className="w-full" disabled={loading || !selectedBundle}>
-              {loading && <Loader2 className="animate-spin" />}
-              Buy Data Bundle
-            </Button>
-          </CardContent>
-        </Card>
+          <button
+            onClick={handlePurchaseClick}
+            disabled={loading || !selectedBundle}
+            className="w-full h-[52px] rounded-xl wallet-gradient text-white font-semibold shadow-premium active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {selectedBundle ? `Buy · ₦${selectedBundle.displayPrice.toLocaleString()}` : "Select a bundle"}
+          </button>
+        </div>
       </div>
 
       <TransactionPinDialog
