@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,10 +10,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
 
 const providers = [
-  { id: "1", name: "MTN" },
-  { id: "2", name: "Airtel" },
-  { id: "3", name: "Glo" },
-  { id: "4", name: "9mobile" },
+  { id: "1", name: "MTN", color: "bg-warning text-white" },
+  { id: "2", name: "Airtel", color: "bg-destructive text-white" },
+  { id: "3", name: "Glo", color: "bg-success text-white" },
+  { id: "4", name: "9mobile", color: "bg-foreground text-white" },
 ];
 
 const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
@@ -32,22 +28,14 @@ export default function AirtimePage() {
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
-  const quickAmounts = [100, 200, 500, 1000];
+  const quickAmounts = [100, 200, 500, 1000, 2000, 5000];
   const numAmount = Number(amount) || 0;
+  const balance = wallet?.balance ?? 0;
 
   const handlePurchaseClick = () => {
-    if (!provider || !phone || !amount) {
-      toast.error("Please fill all fields");
-      return;
-    }
-    if (numAmount < 50) {
-      toast.error("Minimum amount is ₦50");
-      return;
-    }
-    if ((wallet?.balance ?? 0) < numAmount) {
-      toast.error("Insufficient balance. Please fund your wallet.");
-      return;
-    }
+    if (!provider || !phone || !amount) return toast.error("Please fill all fields");
+    if (numAmount < 50) return toast.error("Minimum amount is ₦50");
+    if (balance < numAmount) return toast.error("Insufficient balance. Please fund your wallet.");
     setShowPin(true);
   };
 
@@ -82,66 +70,100 @@ export default function AirtimePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="space-y-5 max-w-lg mx-auto pb-24">
         <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg font-heading">
-              <Phone className="w-5 h-5 text-primary" /> Buy Airtime
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Network Provider</Label>
-              <Select value={provider} onValueChange={setProvider}>
-                <SelectTrigger><SelectValue placeholder="Select network" /></SelectTrigger>
-                <SelectContent>
-                  {providers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input type="tel" placeholder="08012345678" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={11} />
-            </div>
-            <div className="space-y-2">
-              <Label>Amount (₦)</Label>
-              <Input type="number" placeholder="Enter amount" value={amount} onChange={(e) => setAmount(e.target.value)} min={50} />
-            </div>
-            <div className="flex gap-2">
-              {quickAmounts.map((qa) => (
-                <Button key={qa} variant="outline" size="sm" onClick={() => setAmount(String(qa))} className="flex-1">
-                  ₦{qa}
-                </Button>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl wallet-gradient flex items-center justify-center shadow-premium">
+            <Phone className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Buy Airtime</h1>
+            <p className="text-xs text-muted-foreground">Wallet balance ₦{balance.toLocaleString()}</p>
+          </div>
+        </div>
+
+        <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
+          <div>
+            <p className="label-eyebrow mb-3">Select Network</p>
+            <div className="grid grid-cols-4 gap-2">
+              {providers.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setProvider(p.id)}
+                  className={`h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-semibold border-2 transition ${
+                    provider === p.id
+                      ? `${p.color} border-transparent shadow-premium scale-[1.02]`
+                      : "bg-muted/60 border-transparent text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {p.name}
+                </button>
               ))}
             </div>
+          </div>
 
-            {numAmount >= 50 && (
-              <div className="p-3 rounded-lg bg-muted space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Amount</span>
-                  <span className="font-bold text-foreground">₦{numAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wallet Balance</span>
-                  <span className={`font-medium ${(wallet?.balance ?? 0) < numAmount ? 'text-destructive' : 'text-accent'}`}>
-                    ₦{(wallet?.balance ?? 0).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            )}
+          <div>
+            <p className="label-eyebrow mb-2">Phone Number</p>
+            <Input
+              type="tel"
+              placeholder="08012345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              maxLength={11}
+              className="h-14 rounded-2xl bg-muted/60 border-transparent text-base"
+            />
+          </div>
 
-            <Button onClick={handlePurchaseClick} className="w-full" disabled={loading}>
-              {loading && <Loader2 className="animate-spin" />}
-              Buy Airtime · ₦{numAmount.toLocaleString()}
-            </Button>
-          </CardContent>
-        </Card>
+          <div>
+            <p className="label-eyebrow mb-2">Amount</p>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-primary">₦</span>
+              <Input
+                type="number"
+                placeholder="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="h-14 rounded-2xl bg-muted/60 border-transparent text-base pl-9 font-semibold"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {quickAmounts.map((qa) => (
+                <button
+                  key={qa}
+                  type="button"
+                  onClick={() => setAmount(String(qa))}
+                  className={`h-10 rounded-xl text-sm font-semibold transition ${
+                    numAmount === qa
+                      ? "bg-primary text-white"
+                      : "bg-muted/60 text-foreground hover:bg-muted"
+                  }`}
+                >
+                  ₦{qa.toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {numAmount >= 50 && (
+            <div className={`rounded-2xl p-3 text-sm flex justify-between ${balance < numAmount ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
+              <span>{balance < numAmount ? "Insufficient balance" : "Balance after purchase"}</span>
+              <span className="font-bold">₦{Math.max(0, balance - numAmount).toLocaleString()}</span>
+            </div>
+          )}
+
+          <button
+            onClick={handlePurchaseClick}
+            disabled={loading}
+            className="w-full h-[52px] rounded-xl wallet-gradient text-white font-semibold shadow-premium active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            Buy Airtime · ₦{numAmount.toLocaleString()}
+          </button>
+        </div>
       </div>
 
       <TransactionPinDialog
