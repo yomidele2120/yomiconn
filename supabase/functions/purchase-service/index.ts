@@ -124,7 +124,7 @@ interface ProviderConfig {
 
 const PROVIDERS: Record<string, ProviderConfig> = {
   hadidata:      { name: 'Hadi Data',    envKey: 'HADI_DATA_API',        call: callHadiData },
-  cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUB_API_KEY', call: callCheapDataHub },
+  cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUH_API_KEY', call: callCheapDataHub },
 };
 
 const FALLBACK_ORDER = ['cheapdatahub', 'hadidata'];
