@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { LogOut, Shield, Zap, AlertTriangle, Ban, RefreshCw, Settings, Loader2, Globe, Trash2, Plus, Key, Copy, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import PricingManagement from "@/components/admin/PricingManagement";
 
 export default function AdminPage() {
   const { user, signOut } = useAuth();
@@ -329,7 +330,12 @@ export default function AdminPage() {
             <TabsTrigger value="tools">Tools</TabsTrigger>
             <TabsTrigger value="api-config">API Config</TabsTrigger>
             <TabsTrigger value="reseller-keys">Reseller Keys</TabsTrigger>
+            <TabsTrigger value="pricing">Pricing</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="pricing" className="mt-4">
+            <PricingManagement />
+          </TabsContent>
 
           {/* Service Transactions */}
           <TabsContent value="services" className="mt-4">
