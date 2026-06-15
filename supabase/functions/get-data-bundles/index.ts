@@ -191,14 +191,9 @@ serve(async (req) => {
     const { network_id } = await req.json();
     if (!network_id) throw new Error('network_id is required');
 
-    // Fetch CDH from API, HD from static catalog
-    const [cdhBundles] = await Promise.all([
-      fetchCdhBundles(network_id),
-    ]);
-    const hdBundles = fetchHdBundles(network_id);
-
-    // Merge into unified catalog, sorted by displayPrice
-    const bundles = [...cdhBundles, ...hdBundles].sort((a, b) => a.displayPrice - b.displayPrice);
+    // CheapDataHub is the single source of truth — Hadi Data fallback removed.
+    const cdhBundles = await fetchCdhBundles(network_id);
+    const bundles = cdhBundles.sort((a, b) => a.displayPrice - b.displayPrice);
 
     return new Response(JSON.stringify({ bundles }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

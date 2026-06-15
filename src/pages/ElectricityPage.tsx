@@ -148,7 +148,7 @@ export default function ElectricityPage() {
         const errBody = typeof error === 'object' && 'context' in error ? await (error as any).context?.json?.().catch(() => null) : null;
         throw new Error(errBody?.error || error.message || "Purchase failed");
       }
-      if (data?.error) throw new Error(data.error);
+      if (data?.error || !data?.success) throw new Error(data?.error || "Purchase failed");
 
       const token = data?.data?.token || data?.data?.electricity_token || null;
 

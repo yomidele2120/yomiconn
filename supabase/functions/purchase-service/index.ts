@@ -123,11 +123,11 @@ interface ProviderConfig {
 }
 
 const PROVIDERS: Record<string, ProviderConfig> = {
-  hadidata:      { name: 'Hadi Data',    envKey: 'HADI_DATA_API',        call: callHadiData },
   cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUH_API_KEY', call: callCheapDataHub },
 };
 
-const FALLBACK_ORDER = ['cheapdatahub', 'hadidata'];
+// CheapDataHub is the sole source of truth (no fallback).
+const FALLBACK_ORDER = ['cheapdatahub'];
 
 // ─── Main handler ───
 serve(async (req) => {
