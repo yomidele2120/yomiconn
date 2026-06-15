@@ -1,80 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
-
-const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api';
-const BD_BASE_URL = 'https://blessdata.com.ng/api';
-
-const providerMap: Record<string, string> = {
-  'dstv': 'dstv',
-  'gotv': 'gotv',
-  'startimes': 'startimes',
-};
-
-async function fetchCdhPlans(providerId: string): Promise<any[]> {
-  try {
-    const providerName = providerMap[providerId];
-    if (!providerName) return [];
-
-    const response = await fetch(`${CDH_BASE_URL}/cable_list/?format=json`);
-    const text = await response.text();
-    let data;
-    try { data = JSON.parse(text); } catch { return []; }
-    if (data.status !== 'true') return [];
-
-    const rawPlans = data[`${providerName}_plans`] || [];
-    return rawPlans.map((plan: any) => ({
-      id: `cdh_${plan.id}`,
-      name: plan.plan_name || 'Plan',
-      price: plan.plan_price || 0,
-      provider_source: 'cheapdatahub',
-      provider_plan_id: String(plan.id),
-    }));
-  } catch (e) {
-    console.error('CDH cable plans error:', e);
-    return [];
-  }
-}
-
-async function fetchBdPlans(providerId: string): Promise<any[]> {
-  try {
-    const BD_API_KEY = Deno.env.get('BLESSDATA_API_KEY');
-    if (!BD_API_KEY) return [];
-
-    const response = await fetch(`${BD_BASE_URL}/cabletv/`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Token ${BD_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const text = await response.text();
-    let data;
-    try { data = JSON.parse(text); } catch { return []; }
-
-    const plans = Array.isArray(data) ? data : (data.plans || data.data || data.results || []);
-
-    return plans
-      .filter((p: any) => {
-        const pProvider = (p.cable_name || p.provider || '').toLowerCase();
-        return pProvider.includes(providerId);
-      })
-      .map((p: any) => ({
-        id: `bd_${p.id || p.plan_id}`,
-        name: `${p.plan_name || p.name || 'Plan'} [BD]`,
-        price: p.plan_price || p.price || 0,
-        provider_source: 'blessdata',
-        provider_plan_id: String(p.id || p.plan_id),
-      }));
-  } catch (e) {
-    console.error('BD cable plans error:', e);
-    return [];
-  }
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -85,15 +15,34 @@ serve(async (req) => {
     const { provider_id } = await req.json();
     if (!provider_id) throw new Error('provider_id is required');
 
-    const providerName = providerMap[provider_id];
-    if (!providerName) throw new Error('Invalid provider_id');
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
 
-    const [cdhPlans, bdPlans] = await Promise.all([
-      fetchCdhPlans(provider_id),
-      fetchBdPlans(provider_id),
-    ]);
+    const { data, error } = await admin
+      .from('provider_plans')
+      .select('provider_source, provider_plan_id, name, provider_cost, profit_amount, profit_percent')
+      .eq('service_type', 'cable')
+      .eq('network_id', String(provider_id))
+      .eq('is_active', true);
 
-    const plans = [...cdhPlans, ...bdPlans].sort((a, b) => a.price - b.price);
+    if (error) throw error;
+
+    const plans = (data || [])
+      .map((p) => {
+        const price = Math.round(
+          (Number(p.provider_cost) + Number(p.profit_amount) + (Number(p.provider_cost) * Number(p.profit_percent) / 100)) * 100
+        ) / 100;
+        return {
+          id: `${p.provider_source}_${p.provider_plan_id}`,
+          name: p.name,
+          price,
+          provider_source: p.provider_source,
+          provider_plan_id: p.provider_plan_id,
+        };
+      })
+      .sort((a, b) => a.price - b.price);
 
     return new Response(JSON.stringify({ plans }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
