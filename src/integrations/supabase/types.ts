@@ -170,6 +170,60 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_plans: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          last_synced_at: string
+          metadata: Json
+          name: string
+          network_id: string
+          profit_amount: number
+          profit_percent: number
+          provider_cost: number
+          provider_plan_id: string
+          provider_source: string
+          service_type: string
+          size_mb: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string
+          metadata?: Json
+          name: string
+          network_id: string
+          profit_amount?: number
+          profit_percent?: number
+          provider_cost?: number
+          provider_plan_id: string
+          provider_source?: string
+          service_type: string
+          size_mb?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_synced_at?: string
+          metadata?: Json
+          name?: string
+          network_id?: string
+          profit_amount?: number
+          profit_percent?: number
+          provider_cost?: number
+          provider_plan_id?: string
+          provider_source?: string
+          service_type?: string
+          size_mb?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rate_limits: {
         Row: {
           action: string
@@ -418,6 +472,10 @@ export type Database = {
           p_window_seconds: number
         }
         Returns: boolean
+      }
+      compute_selling_price: {
+        Args: { p_cost: number; p_flat: number; p_percent: number }
+        Returns: number
       }
       credit_wallet: {
         Args: { p_amount: number; p_user_id: string }
