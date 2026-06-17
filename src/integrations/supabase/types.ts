@@ -371,6 +371,39 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_reconciliation_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          drift_amount: number
+          expected_balance: number
+          id: string
+          previous_balance: number
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          drift_amount: number
+          expected_balance: number
+          id?: string
+          previous_balance: number
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          drift_amount?: number
+          expected_balance?: number
+          id?: string
+          previous_balance?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -501,10 +534,13 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      reconcile_all_wallets: { Args: never; Returns: Json }
+      reconcile_stuck_transactions: { Args: never; Returns: Json }
       refund_wallet: {
         Args: { p_amount: number; p_reference: string; p_user_id: string }
         Returns: undefined
       }
+      run_wallet_reconciliation: { Args: never; Returns: Json }
       validate_api_key: { Args: { p_api_key: string }; Returns: Json }
     }
     Enums: {
