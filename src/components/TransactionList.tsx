@@ -40,6 +40,10 @@ function statusPill(status: string) {
     return { label: "Success", className: "bg-success/12 text-success" };
   if (s === "failed" || s === "error")
     return { label: "Failed", className: "bg-destructive/12 text-destructive" };
+  if (s === "initiated" || s === "processing")
+    return { label: "Processing", className: "bg-warning/15 text-warning" };
+  if (s === "refunded")
+    return { label: "Refunded", className: "bg-primary/12 text-primary" };
   return { label: "Pending", className: "bg-warning/15 text-warning" };
 }
 
