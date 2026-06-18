@@ -38,6 +38,17 @@ export default {
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
+          strong: "hsl(var(--muted-strong))",
+          disabled: "hsl(var(--muted-disabled))",
+        },
+        surface: {
+          DEFAULT: "hsl(var(--card))",
+          elevated: "hsl(var(--surface-elevated))",
+          hover: "hsl(var(--surface-hover))",
+        },
+        pending: {
+          DEFAULT: "hsl(var(--pending))",
+          foreground: "hsl(var(--pending-foreground))",
         },
         accent: {
           DEFAULT: "hsl(var(--accent))",

@@ -69,14 +69,13 @@ export default function PaymentWaitingPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top half */}
-      <div className="relative flex-1 flex items-center justify-center overflow-hidden"
-        style={{ background: "linear-gradient(135deg,#6C3AE8 0%, #4F2BD1 100%)" }}>
+      <div className="relative flex-1 flex items-center justify-center overflow-hidden bg-background">
         {[0, 1, 2].map(i => (
-          <span key={i} className="absolute w-32 h-32 rounded-full border-2 border-white/40 pulse-ring"
+          <span key={i} className="absolute w-32 h-32 rounded-full border border-border pulse-ring"
             style={{ animationDelay: `${i * 0.8}s` }} />
         ))}
-        <div className="relative w-20 h-20 rounded-full bg-white/15 backdrop-blur flex items-center justify-center">
-          <Clock className="w-10 h-10 text-white" style={{ animation: "spin 6s linear infinite" }} />
+        <div className="relative w-20 h-20 rounded-full bg-card border border-border flex items-center justify-center">
+          <Clock className="w-10 h-10 text-primary" style={{ animation: "spin 6s linear infinite" }} />
         </div>
       </div>
 
