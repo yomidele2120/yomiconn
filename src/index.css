@@ -91,11 +91,7 @@
 @layer utilities {
   /* Solid replacements for legacy gradient utilities — no gradients anywhere */
   .wallet-gradient,
-  .premium-gradient {
-    background: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    color: hsl(var(--foreground));
-  }
+  .premium-gradient,
   .gold-gradient {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
