@@ -65,6 +65,39 @@ export type Database = {
         }
         Relationships: []
       }
+      bridgenetic_events: {
+        Row: {
+          amount: number | null
+          created_at: string
+          event: string
+          id: string
+          payload: Json
+          processed: boolean
+          reference: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          event: string
+          id?: string
+          payload: Json
+          processed?: boolean
+          reference: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          event?: string
+          id?: string
+          payload?: Json
+          processed?: boolean
+          reference?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       fraud_events: {
         Row: {
           created_at: string
@@ -133,6 +166,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          bn_account_name: string | null
+          bn_account_number: string | null
+          bn_bank_name: string | null
+          bn_created_at: string | null
+          bn_va_id: string | null
           created_at: string
           email: string | null
           frozen_at: string | null
@@ -145,6 +183,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bn_account_name?: string | null
+          bn_account_number?: string | null
+          bn_bank_name?: string | null
+          bn_created_at?: string | null
+          bn_va_id?: string | null
           created_at?: string
           email?: string | null
           frozen_at?: string | null
@@ -157,6 +200,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bn_account_name?: string | null
+          bn_account_number?: string | null
+          bn_bank_name?: string | null
+          bn_created_at?: string | null
+          bn_va_id?: string | null
           created_at?: string
           email?: string | null
           frozen_at?: string | null
