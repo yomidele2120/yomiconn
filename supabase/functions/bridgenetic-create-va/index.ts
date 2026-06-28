@@ -5,6 +5,13 @@ const BASE = "https://bridgenetic.com/api/v1";
 const API_KEY = Deno.env.get("BRIDGENETIC_API_KEY")!;
 const SECRET = Deno.env.get("BRIDGENETIC_SECRET_KEY") || "";
 
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 async function hmac(body: string) {
   const key = await crypto.subtle.importKey(
     "raw", new TextEncoder().encode(SECRET),
@@ -20,13 +27,35 @@ function sanitizeNarration(name: string) {
   return n.slice(0, 50);
 }
 
+async function bridgeneticHeaders(body: string, idempotencyKey?: string) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+  };
+
+  if (idempotencyKey) headers["X-Idempotency-Key"] = idempotencyKey;
+
+  // Bridgenetic supports either Sanctum Bearer tokens OR API Key + HMAC.
+  // When a secret key is configured, use only the documented HMAC headers;
+  // sending an invalid Authorization header alongside HMAC makes Laravel
+  // reject the request as "Unauthenticated" before checking X-Api-Key.
+  if (SECRET) {
+    headers["X-Api-Key"] = API_KEY;
+    headers["X-Signature"] = await hmac(body);
+    return headers;
+  }
+
+  headers["Authorization"] = `Bearer ${API_KEY}`;
+  return headers;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -35,19 +64,19 @@ Deno.serve(async (req) => {
     );
     const { data: claims } = await supabase.auth.getClaims(authHeader.replace("Bearer ", ""));
     if (!claims?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
     const userId = claims.claims.sub;
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: profile } = await admin.from("profiles").select("*").eq("user_id", userId).single();
-    if (!profile) return new Response(JSON.stringify({ error: "Profile not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!profile) return jsonResponse({ error: "Profile not found" }, 404);
 
     if (profile.bn_account_number) {
-      return new Response(JSON.stringify({
+      return jsonResponse({
         status: "exists",
         data: { account_number: profile.bn_account_number, bank_name: profile.bn_bank_name, account_name: profile.bn_account_name },
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      });
     }
 
     const fullName = profile.full_name || (profile.email ? profile.email.split("@")[0] : "User");
@@ -59,20 +88,13 @@ Deno.serve(async (req) => {
       narration: sanitizeNarration(fullName),
     };
     const body = JSON.stringify(payload);
-    const sig = await hmac(body);
-
-    const headers: Record<string, string> = {
-      "Authorization": `Bearer ${API_KEY}`,
-      "X-Api-Key": API_KEY,
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    };
-    if (SECRET) headers["X-Signature"] = sig;
+    const headers = await bridgeneticHeaders(body, `VA-${userId}-${Date.now()}`);
     const res = await fetch(`${BASE}/virtual-accounts/create`, { method: "POST", headers, body });
     const json = await res.json();
     if (!res.ok || json.status === false || json.success === false) {
       const msg = json?.error?.message || json?.message || "Failed to create virtual account";
-      return new Response(JSON.stringify({ error: msg, details: json }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      console.error("Bridgenetic create VA failed", { status: res.status, message: msg });
+      return jsonResponse({ status: "error", error: msg, details: json });
     }
     const d = json.data || {};
     await admin.from("profiles").update({
@@ -83,9 +105,9 @@ Deno.serve(async (req) => {
       bn_created_at: new Date().toISOString(),
     }).eq("user_id", userId);
 
-    return new Response(JSON.stringify({ status: "success", data: d }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ status: "success", data: d });
   } catch (e) {
     console.error("create-va error", e);
-    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: (e as Error).message }, 500);
   }
 });
