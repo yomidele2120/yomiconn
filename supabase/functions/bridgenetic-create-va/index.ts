@@ -61,11 +61,14 @@ Deno.serve(async (req) => {
     const body = JSON.stringify(payload);
     const sig = await hmac(body);
 
-    const res = await fetch(`${BASE}/virtual-accounts/create`, {
-      method: "POST",
-      headers: { "X-Api-Key": API_KEY, "X-Signature": sig, "Content-Type": "application/json", "Accept": "application/json" },
-      body,
-    });
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${API_KEY}`,
+      "X-Api-Key": API_KEY,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
+    if (SECRET) headers["X-Signature"] = sig;
+    const res = await fetch(`${BASE}/virtual-accounts/create`, { method: "POST", headers, body });
     const json = await res.json();
     if (!res.ok || json.status === false || json.success === false) {
       const msg = json?.error?.message || json?.message || "Failed to create virtual account";
