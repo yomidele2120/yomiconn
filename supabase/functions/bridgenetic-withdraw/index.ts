@@ -57,11 +57,15 @@ Deno.serve(async (req) => {
 
     let providerJson: any;
     try {
-      const res = await fetch(`${BASE}/withdrawals/create`, {
-        method: "POST",
-        headers: { "X-Api-Key": API_KEY, "X-Signature": sig, "X-Idempotency-Key": reference, "Content-Type": "application/json", "Accept": "application/json" },
-        body,
-      });
+      const headers: Record<string, string> = {
+        "Authorization": `Bearer ${API_KEY}`,
+        "X-Api-Key": API_KEY,
+        "X-Idempotency-Key": reference,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      };
+      if (SECRET) headers["X-Signature"] = sig;
+      const res = await fetch(`${BASE}/withdrawals/create`, { method: "POST", headers, body });
       providerJson = await res.json();
       if (!res.ok || providerJson?.success === false || providerJson?.status === false) {
         throw new Error(providerJson?.error?.message || providerJson?.message || "Provider rejected withdrawal");
