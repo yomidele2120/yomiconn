@@ -26,10 +26,12 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
     setStep("form"); setAccountName(""); setAccountNumber(""); setAmount(""); setBankCode("");
     (async () => {
       try {
-        const { data } = await supabase.functions.invoke("bridgenetic-banks", { body: {} });
+        const { data, error } = await supabase.functions.invoke("bridgenetic-banks", { body: {} });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
         const list = (data?.data || []).map((b: any) => ({ name: b.name, code: b.code || b.bank_code, id: b.id }));
         setBanks(list);
-      } catch { toast.error("Failed to load banks"); }
+      } catch (e: any) { toast.error(e?.context?.error || e?.message || "Failed to load banks"); }
     })();
   }, [open]);
 
@@ -43,11 +45,12 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
             body: { account_number: accountNumber, bank_code: bankCode },
           });
           if (error) throw error;
+          if (data?.error) throw new Error(data.error);
           const name = data?.data?.account_name || data?.data?.customer_name;
           if (name) setAccountName(name);
           else toast.error(data?.error?.message || "Could not resolve account");
         } catch (e: any) {
-          toast.error(e.message || "Resolve failed");
+          toast.error(e?.context?.error || e?.message || "Resolve failed");
         } finally { setResolving(false); }
       })();
     }
@@ -68,7 +71,7 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
       qc.invalidateQueries({ queryKey: ["wallet-transactions"] });
       onOpenChange(false);
     } catch (e: any) {
-      toast.error(e.message || "Withdrawal failed");
+      toast.error(e?.context?.error || e?.message || "Withdrawal failed");
     } finally { setSubmitting(false); }
   };
 
@@ -115,7 +118,7 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
               </Field>
 
               <button
-                disabled={!accountName || !num || num > walletBalance}
+                disabled={!accountName || !num || num < 1000 || num > walletBalance}
                 onClick={() => setStep("confirm")}
                 className="w-full h-12 rounded-[10px] bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 active:scale-[0.99] transition">
                 {num > walletBalance ? "Insufficient balance" : "Continue"}
