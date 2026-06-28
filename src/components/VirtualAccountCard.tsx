@@ -9,6 +9,11 @@ interface VA {
   bank_name: string;
 }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
 export default function VirtualAccountCard() {
   const [va, setVa] = useState<VA | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,9 +54,8 @@ export default function VirtualAccountCard() {
       } else {
         toast.error("Unable to create account");
       }
-    } catch (e: any) {
-      const message = e?.context?.error || e?.message || "Failed to create account";
-      toast.error(message);
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Failed to create account"));
     } finally {
       setCreating(false);
     }
