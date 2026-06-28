@@ -3,7 +3,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const BASE = "https://bridgenetic.com/api/v1";
 const API_KEY = Deno.env.get("BRIDGENETIC_API_KEY")!;
-const SECRET = Deno.env.get("BRIDGENETIC_SECRET_KEY")!;
+const SECRET = Deno.env.get("BRIDGENETIC_SECRET_KEY") || "";
 
 async function hmac(body: string) {
   const key = await crypto.subtle.importKey(
