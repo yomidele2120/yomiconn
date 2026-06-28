@@ -4,6 +4,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 const BASE = "https://bridgenetic.com/api/v1";
 const API_KEY = Deno.env.get("BRIDGENETIC_API_KEY")!;
 const SECRET = Deno.env.get("BRIDGENETIC_SECRET_KEY") || "";
+const BEARER_TOKEN = Deno.env.get("BRIDGENETIC_BEARER_TOKEN") || "";
 
 function jsonResponse(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -27,7 +28,7 @@ function sanitizeNarration(name: string) {
   return n.slice(0, 50);
 }
 
-type BridgeneticAuthMode = "hmac" | "bearer";
+type BridgeneticAuthMode = "hmac" | "bearer-token" | "bearer-api-key";
 
 async function bridgeneticHeaders(body: string, mode: BridgeneticAuthMode, idempotencyKey?: string) {
   const headers: Record<string, string> = {
@@ -43,12 +44,15 @@ async function bridgeneticHeaders(body: string, mode: BridgeneticAuthMode, idemp
     return headers;
   }
 
-  headers["Authorization"] = `Bearer ${API_KEY}`;
+  headers["Authorization"] = `Bearer ${mode === "bearer-token" ? BEARER_TOKEN : API_KEY}`;
   return headers;
 }
 
 async function callBridgeneticVirtualAccount(body: string, idempotencyKey: string) {
-  const attempts: BridgeneticAuthMode[] = SECRET ? ["hmac", "bearer"] : ["bearer"];
+  const attempts: BridgeneticAuthMode[] = [];
+  if (SECRET) attempts.push("hmac");
+  if (BEARER_TOKEN) attempts.push("bearer-token");
+  attempts.push("bearer-api-key");
   let lastJson: any = null;
   let lastStatus = 500;
 
