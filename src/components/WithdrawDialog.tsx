@@ -8,6 +8,11 @@ import { useQueryClient } from "@tanstack/react-query";
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; walletBalance: number; }
 interface Bank { id?: string | number; name: string; code: string; }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
 export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Props) {
   const [step, setStep] = useState<"form" | "confirm">("form");
   const [banks, setBanks] = useState<Bank[]>([]);
@@ -26,10 +31,12 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
     setStep("form"); setAccountName(""); setAccountNumber(""); setAmount(""); setBankCode("");
     (async () => {
       try {
-        const { data } = await supabase.functions.invoke("bridgenetic-banks", { body: {} });
-        const list = (data?.data || []).map((b: any) => ({ name: b.name, code: b.code || b.bank_code, id: b.id }));
+        const { data, error } = await supabase.functions.invoke("bridgenetic-banks", { body: {} });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        const list = ((data?.data || []) as Array<{ id?: string | number; name: string; code?: string; bank_code?: string }>).map((b) => ({ name: b.name, code: b.code || b.bank_code || "", id: b.id }));
         setBanks(list);
-      } catch { toast.error("Failed to load banks"); }
+      } catch (e: unknown) { toast.error(getErrorMessage(e, "Failed to load banks")); }
     })();
   }, [open]);
 
@@ -43,11 +50,12 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
             body: { account_number: accountNumber, bank_code: bankCode },
           });
           if (error) throw error;
+          if (data?.error) throw new Error(data.error);
           const name = data?.data?.account_name || data?.data?.customer_name;
           if (name) setAccountName(name);
           else toast.error(data?.error?.message || "Could not resolve account");
-        } catch (e: any) {
-          toast.error(e.message || "Resolve failed");
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e, "Resolve failed"));
         } finally { setResolving(false); }
       })();
     }
@@ -67,8 +75,8 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
       qc.invalidateQueries({ queryKey: ["wallet"] });
       qc.invalidateQueries({ queryKey: ["wallet-transactions"] });
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e.message || "Withdrawal failed");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Withdrawal failed"));
     } finally { setSubmitting(false); }
   };
 
@@ -115,10 +123,10 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
               </Field>
 
               <button
-                disabled={!accountName || !num || num > walletBalance}
+                disabled={!accountName || !num || num < 1000 || num > walletBalance}
                 onClick={() => setStep("confirm")}
                 className="w-full h-12 rounded-[10px] bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 active:scale-[0.99] transition">
-                {num > walletBalance ? "Insufficient balance" : "Continue"}
+                {num > walletBalance ? "Insufficient balance" : num > 0 && num < 1000 ? "Minimum is ₦1,000" : "Continue"}
               </button>
             </div>
           ) : (
