@@ -50,7 +50,8 @@ export default function VirtualAccountCard() {
         toast.error("Unable to create account");
       }
     } catch (e: any) {
-      toast.error(e.message || "Failed to create account");
+      const message = e?.context?.error || e?.message || "Failed to create account";
+      toast.error(message);
     } finally {
       setCreating(false);
     }
