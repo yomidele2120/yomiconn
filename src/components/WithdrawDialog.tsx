@@ -8,6 +8,11 @@ import { useQueryClient } from "@tanstack/react-query";
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; walletBalance: number; }
 interface Bank { id?: string | number; name: string; code: string; }
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
 export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Props) {
   const [step, setStep] = useState<"form" | "confirm">("form");
   const [banks, setBanks] = useState<Bank[]>([]);
@@ -29,9 +34,9 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
         const { data, error } = await supabase.functions.invoke("bridgenetic-banks", { body: {} });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-        const list = (data?.data || []).map((b: any) => ({ name: b.name, code: b.code || b.bank_code, id: b.id }));
+        const list = ((data?.data || []) as Array<{ id?: string | number; name: string; code?: string; bank_code?: string }>).map((b) => ({ name: b.name, code: b.code || b.bank_code || "", id: b.id }));
         setBanks(list);
-      } catch (e: any) { toast.error(e?.context?.error || e?.message || "Failed to load banks"); }
+      } catch (e: unknown) { toast.error(getErrorMessage(e, "Failed to load banks")); }
     })();
   }, [open]);
 
@@ -49,8 +54,8 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
           const name = data?.data?.account_name || data?.data?.customer_name;
           if (name) setAccountName(name);
           else toast.error(data?.error?.message || "Could not resolve account");
-        } catch (e: any) {
-          toast.error(e?.context?.error || e?.message || "Resolve failed");
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e, "Resolve failed"));
         } finally { setResolving(false); }
       })();
     }
@@ -70,8 +75,8 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
       qc.invalidateQueries({ queryKey: ["wallet"] });
       qc.invalidateQueries({ queryKey: ["wallet-transactions"] });
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e?.context?.error || e?.message || "Withdrawal failed");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e, "Withdrawal failed"));
     } finally { setSubmitting(false); }
   };
 
