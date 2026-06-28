@@ -27,7 +27,9 @@ function sanitizeNarration(name: string) {
   return n.slice(0, 50);
 }
 
-async function bridgeneticHeaders(body: string, idempotencyKey?: string) {
+type BridgeneticAuthMode = "hmac" | "bearer";
+
+async function bridgeneticHeaders(body: string, mode: BridgeneticAuthMode, idempotencyKey?: string) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Accept": "application/json",
@@ -35,11 +37,7 @@ async function bridgeneticHeaders(body: string, idempotencyKey?: string) {
 
   if (idempotencyKey) headers["X-Idempotency-Key"] = idempotencyKey;
 
-  // Bridgenetic supports either Sanctum Bearer tokens OR API Key + HMAC.
-  // When a secret key is configured, use only the documented HMAC headers;
-  // sending an invalid Authorization header alongside HMAC makes Laravel
-  // reject the request as "Unauthenticated" before checking X-Api-Key.
-  if (SECRET) {
+  if (mode === "hmac") {
     headers["X-Api-Key"] = API_KEY;
     headers["X-Signature"] = await hmac(body);
     return headers;
@@ -47,6 +45,31 @@ async function bridgeneticHeaders(body: string, idempotencyKey?: string) {
 
   headers["Authorization"] = `Bearer ${API_KEY}`;
   return headers;
+}
+
+async function callBridgeneticVirtualAccount(body: string, idempotencyKey: string) {
+  const attempts: BridgeneticAuthMode[] = SECRET ? ["hmac", "bearer"] : ["bearer"];
+  let lastJson: any = null;
+  let lastStatus = 500;
+
+  for (const mode of attempts) {
+    const headers = await bridgeneticHeaders(body, mode, idempotencyKey);
+    const res = await fetch(`${BASE}/virtual-accounts/create`, { method: "POST", headers, body });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : {};
+
+    if (res.ok && json.status !== false && json.success !== false) {
+      return { ok: true, status: res.status, json, mode };
+    }
+
+    lastJson = json;
+    lastStatus = res.status;
+
+    const message = String(json?.error?.message || json?.message || "").toLowerCase();
+    if (res.status !== 401 && !message.includes("unauthenticated")) break;
+  }
+
+  return { ok: false, status: lastStatus, json: lastJson, mode: attempts[attempts.length - 1] };
 }
 
 Deno.serve(async (req) => {
@@ -88,13 +111,15 @@ Deno.serve(async (req) => {
       narration: sanitizeNarration(fullName),
     };
     const body = JSON.stringify(payload);
-    const headers = await bridgeneticHeaders(body, `VA-${userId}-${Date.now()}`);
-    const res = await fetch(`${BASE}/virtual-accounts/create`, { method: "POST", headers, body });
-    const json = await res.json();
-    if (!res.ok || json.status === false || json.success === false) {
+    const provider = await callBridgeneticVirtualAccount(body, `VA-${userId}-${Date.now()}`);
+    const json = provider.json;
+    if (!provider.ok) {
       const msg = json?.error?.message || json?.message || "Failed to create virtual account";
-      console.error("Bridgenetic create VA failed", { status: res.status, message: msg });
-      return jsonResponse({ status: "error", error: msg, details: json });
+      console.error("Bridgenetic create VA failed", { status: provider.status, message: msg, authMode: provider.mode });
+      const friendly = msg.toLowerCase().includes("unauthenticated")
+        ? "Bridgenetic rejected the saved API credentials. Please update the Bridgenetic API key pair/token in backend secrets."
+        : msg;
+      return jsonResponse({ status: "error", error: friendly, details: json });
     }
     const d = json.data || {};
     await admin.from("profiles").update({
