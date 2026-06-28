@@ -121,7 +121,7 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
                 disabled={!accountName || !num || num < 1000 || num > walletBalance}
                 onClick={() => setStep("confirm")}
                 className="w-full h-12 rounded-[10px] bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 active:scale-[0.99] transition">
-                {num > walletBalance ? "Insufficient balance" : "Continue"}
+                {num > walletBalance ? "Insufficient balance" : num > 0 && num < 1000 ? "Minimum is ₦1,000" : "Continue"}
               </button>
             </div>
           ) : (
