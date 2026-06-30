@@ -121,7 +121,8 @@ async function callHadiData(
 }
 
 // ─── Provider registry ───
-type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, any>, amount: number) => Promise<{ ok: boolean; data: any }>;
+type ProviderResult = { ok: boolean; pending?: boolean; providerRef?: string | null; data: any };
+type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, any>, amount: number) => Promise<ProviderResult>;
 
 interface ProviderConfig {
   name: string;
