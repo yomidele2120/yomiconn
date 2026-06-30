@@ -98,6 +98,36 @@ export type Database = {
         }
         Relationships: []
       }
+      cheapdatahub_webhook_events: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          id: string
+          payload: Json
+          processed_at: string | null
+          reference: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          reference?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          reference?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       fraud_events: {
         Row: {
           created_at: string
@@ -339,11 +369,14 @@ export type Database = {
         Row: {
           amount: number
           api_response: Json | null
+          completed_at: string | null
           created_at: string
+          failure_reason: string | null
           id: string
           metadata: Json | null
           phone_number: string | null
           provider: string | null
+          provider_reference: string | null
           reference: string | null
           service_type: string
           status: string
@@ -352,11 +385,14 @@ export type Database = {
         Insert: {
           amount: number
           api_response?: Json | null
+          completed_at?: string | null
           created_at?: string
+          failure_reason?: string | null
           id?: string
           metadata?: Json | null
           phone_number?: string | null
           provider?: string | null
+          provider_reference?: string | null
           reference?: string | null
           service_type: string
           status?: string
@@ -365,11 +401,14 @@ export type Database = {
         Update: {
           amount?: number
           api_response?: Json | null
+          completed_at?: string | null
           created_at?: string
+          failure_reason?: string | null
           id?: string
           metadata?: Json | null
           phone_number?: string | null
           provider?: string | null
+          provider_reference?: string | null
           reference?: string | null
           service_type?: string
           status?: string
@@ -589,6 +628,18 @@ export type Database = {
         Returns: undefined
       }
       run_wallet_reconciliation: { Args: never; Returns: Json }
+      settle_service_transaction_failure: {
+        Args: { p_api_response: Json; p_reason: string; p_reference: string }
+        Returns: Json
+      }
+      settle_service_transaction_success: {
+        Args: {
+          p_api_response: Json
+          p_provider_reference: string
+          p_reference: string
+        }
+        Returns: Json
+      }
       validate_api_key: { Args: { p_api_key: string }; Returns: Json }
     }
     Enums: {
