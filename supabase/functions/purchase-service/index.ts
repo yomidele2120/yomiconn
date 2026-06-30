@@ -215,7 +215,7 @@ serve(async (req) => {
 
     // ── Try providers with fallback ──
     const providerOrder = [requestedSource, ...FALLBACK_ORDER.filter(p => p !== requestedSource)];
-    let result: { ok: boolean; data: any } | null = null;
+    let result: ProviderResult | null = null;
     let usedProvider = '';
     let lastError = '';
 
@@ -234,8 +234,8 @@ serve(async (req) => {
         result = await provider.call(apiKey, service_type, params, amount);
         usedProvider = providerKey;
 
-        if (result.ok) {
-          console.log(`[PURCHASE] ${provider.name} SUCCESS`);
+        if (result.ok || result.pending) {
+          console.log(`[PURCHASE] ${provider.name} ${result.ok ? 'SUCCESS' : 'PENDING'}`);
           break;
         } else {
           lastError = result.data?.message || result.data?.api_response || result.data?.detail || `${provider.name} failed`;
@@ -250,58 +250,57 @@ serve(async (req) => {
     }
 
     // ── All providers failed → mark failed, do NOT deduct ──
-    if (!result || !result.ok) {
+    if (!result || (!result.ok && !result.pending)) {
       console.log(`[PURCHASE] ALL PROVIDERS FAILED – no wallet deduction`);
-      await supabaseAdmin
-        .from('service_transactions')
-        .update({ status: 'failed', api_response: result?.data || { error: lastError } })
-        .eq('reference', reference);
-
+      await supabaseAdmin.rpc('settle_service_transaction_failure', {
+        p_reference: reference,
+        p_reason: lastError || 'All providers failed',
+        p_api_response: result?.data || { error: lastError },
+      });
       return json({ error: lastError || 'All providers failed. Please try again later.' }, 502);
     }
 
-    // ── Provider succeeded → NOW deduct wallet atomically ──
-    const { data: deductResult, error: deductError } = await supabaseAdmin.rpc('deduct_wallet', {
-      p_user_id: user.id, p_amount: amount, p_reference: reference,
-    });
-
-    if (deductError) {
-      console.error(`[PURCHASE] Wallet deduction error after API success: ${deductError.message}`);
-      // API succeeded but wallet deduction failed – mark as needs-attention
+    // ── Async pending → keep open, webhook will settle ──
+    if (result.pending && !result.ok) {
       await supabaseAdmin
         .from('service_transactions')
-        .update({ status: 'completed_no_debit', api_response: result.data })
+        .update({
+          status: 'pending',
+          api_response: result.data,
+          provider_reference: result.providerRef,
+          provider: `${usedProvider}:${params.provider_id || params.disco || params.plan_id || ''}`,
+        })
         .eq('reference', reference);
 
+      console.log(`[PURCHASE] PENDING via ${usedProvider}, awaiting webhook for ${reference}`);
+      return json({ success: true, pending: true, reference, provider: usedProvider, data: result.data }, 200);
+    }
+
+    // ── Immediate success → settle atomically (deduct wallet + mark success) ──
+    const { data: settleResult, error: settleError } = await supabaseAdmin.rpc(
+      'settle_service_transaction_success',
+      {
+        p_reference: reference,
+        p_provider_reference: result.providerRef,
+        p_api_response: result.data,
+      }
+    );
+
+    if (settleError) {
+      console.error(`[PURCHASE] Settlement error: ${settleError.message}`);
       return json({ error: 'Purchase completed but wallet update failed. Contact support.' }, 500);
     }
 
-    if (deductResult?.status === 'duplicate') {
-      return json({ success: true, duplicate: true, reference, message: 'Transaction already processed' }, 200);
+    if (settleResult?.status === 'no_debit') {
+      return json({ error: 'Purchase delivered but wallet had insufficient balance. Contact support.' }, 500);
     }
 
-    if (deductResult?.status === 'error') {
-      // Balance changed between check and deduction (race condition)
-      await supabaseAdmin
-        .from('service_transactions')
-        .update({ status: 'completed_no_debit', api_response: result.data })
-        .eq('reference', reference);
-
-      return json({ error: deductResult.message || 'Wallet deduction failed after purchase' }, 500);
-    }
-
-    // ── Mark successful ──
     await supabaseAdmin
       .from('service_transactions')
-      .update({
-        status: 'successful',
-        api_response: result.data,
-        provider: `${usedProvider}:${params.provider_id || params.disco || params.plan_id || ''}`,
-      })
+      .update({ provider: `${usedProvider}:${params.provider_id || params.disco || params.plan_id || ''}` })
       .eq('reference', reference);
 
     console.log(`[PURCHASE] COMPLETE via ${usedProvider}, ref=${reference}`);
-
     return json({ success: true, reference, provider: usedProvider, data: result.data }, 200);
 
   } catch (error) {
