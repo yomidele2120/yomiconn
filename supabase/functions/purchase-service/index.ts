@@ -62,8 +62,15 @@ async function callCheapDataHub(
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
-  console.log(`[CDH] status=${res.status}, ok=${res.ok}`, JSON.stringify(data).substring(0, 300));
-  return { ok: res.ok, data };
+
+  // Detect provider state from response body (CDH varies by endpoint)
+  const rawStatus = String(data?.status ?? data?.transaction_status ?? data?.data?.status ?? '').toLowerCase();
+  const isSuccess = res.ok && ['success','successful','completed','delivered'].includes(rawStatus);
+  const isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
+  const providerRef = data?.transaction_id ?? data?.reference ?? data?.data?.transaction_id ?? data?.data?.reference ?? null;
+
+  console.log(`[CDH] http=${res.status} raw=${rawStatus} success=${isSuccess} pending=${isPending}`);
+  return { ok: isSuccess, pending: isPending, providerRef, data };
 }
 
 async function callHadiData(
