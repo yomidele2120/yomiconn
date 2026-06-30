@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.reseller-api]
 verify_jwt = false
+
+[functions.cheapdatahub-webhook]
+verify_jwt = false
+
+[functions.bridgenetic-webhook]
+verify_jwt = false
