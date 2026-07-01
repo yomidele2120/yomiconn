@@ -632,6 +632,10 @@ export type Database = {
         Args: { p_api_response: Json; p_reason: string; p_reference: string }
         Returns: Json
       }
+      settle_service_transaction_refund: {
+        Args: { p_api_response: Json; p_reason: string; p_reference: string }
+        Returns: Json
+      }
       settle_service_transaction_success: {
         Args: {
           p_api_response: Json
