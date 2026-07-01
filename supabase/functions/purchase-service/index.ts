@@ -8,16 +8,18 @@ const corsHeaders = {
 
 const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api/v1/resellers';
 const HD_BASE_URL = 'https://hadidata.com/api';
+const BDS_BASE_URL = 'https://bilaldatasub.com/api';
 
-// Network mapping: our frontend IDs → Hadi Data network IDs
+// Network mapping: our frontend IDs → third-party network IDs
 // Ours: 1=MTN, 2=Airtel, 3=Glo, 4=9mobile
-// Hadi: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
+// Hadi/Bilal: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
 const HD_NETWORK_MAP: Record<string, number> = {
   '1': 1,
   '2': 4,
   '3': 2,
   '4': 3,
 };
+const BDS_NETWORK_MAP = HD_NETWORK_MAP;
 
 // ─── Provider API helpers ───
 
