@@ -1,5 +1,5 @@
 // CheapDataHub webhook receiver
-// Public endpoint — no JWT required. Verifies optional shared secret.
+// Public endpoint. If CHEAPDATAHUB_WEBHOOK_SECRET is configured, signature is REQUIRED (401 on mismatch).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -17,62 +17,59 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// Best-effort field extraction — CheapDataHub payloads vary by service
 function pickReference(p: any): string | null {
   return (
-    p?.reference ??
-    p?.transaction_reference ??
-    p?.client_reference ??
-    p?.merchant_reference ??
-    p?.order_id ??
-    p?.request_id ??
-    p?.data?.reference ??
-    p?.data?.transaction_reference ??
-    p?.data?.client_reference ??
-    null
+    p?.reference ?? p?.transaction_reference ?? p?.client_reference ??
+    p?.merchant_reference ?? p?.order_id ?? p?.request_id ??
+    p?.data?.reference ?? p?.data?.transaction_reference ??
+    p?.data?.client_reference ?? null
   );
 }
-
 function pickProviderRef(p: any): string | null {
   return (
-    p?.provider_reference ??
-    p?.transaction_id ??
-    p?.api_reference ??
-    p?.data?.provider_reference ??
-    p?.data?.transaction_id ??
-    p?.data?.api_reference ??
-    null
+    p?.provider_reference ?? p?.transaction_id ?? p?.api_reference ??
+    p?.data?.provider_reference ?? p?.data?.transaction_id ??
+    p?.data?.api_reference ?? null
   );
 }
 
-function pickStatus(p: any): string {
+// Map provider status → app status
+// initiated → pending, processing → processing, successful → success,
+// failed → failed, refunded → refunded
+type AppStatus = "pending" | "processing" | "success" | "failed" | "refunded" | "unknown";
+function mapStatus(p: any): AppStatus {
   const raw = String(
     p?.status ?? p?.transaction_status ?? p?.data?.status ?? p?.event ?? ""
-  ).toLowerCase();
-  if (["success", "successful", "completed", "delivered", "paid"].includes(raw)) return "success";
-  if (["failed", "failure", "error", "declined", "cancelled", "canceled", "reversed"].includes(raw))
-    return "failed";
-  if (["pending", "processing", "initiated", "in_progress"].includes(raw)) return "pending";
-  return raw || "unknown";
+  ).toLowerCase().trim();
+  if (["initiated", "queued"].includes(raw)) return "pending";
+  if (["processing", "in_progress", "pending"].includes(raw)) return "processing";
+  if (["successful", "success", "completed", "delivered", "paid"].includes(raw)) return "success";
+  if (["failed", "failure", "error", "declined", "cancelled", "canceled"].includes(raw)) return "failed";
+  if (["refunded", "reversed", "refund"].includes(raw)) return "refunded";
+  return "unknown";
 }
 
 function pickReason(p: any): string | null {
   return p?.message ?? p?.reason ?? p?.error ?? p?.data?.message ?? p?.data?.reason ?? null;
 }
-
 function pickEventId(p: any, ref: string | null, status: string): string {
   return (
-    p?.event_id ??
-    p?.id ??
-    p?.data?.event_id ??
-    p?.data?.id ??
+    p?.event_id ?? p?.id ?? p?.data?.event_id ?? p?.data?.id ??
     `${ref ?? "noref"}:${status}:${p?.timestamp ?? p?.data?.timestamp ?? Date.now()}`
   );
 }
 
+async function hmacSha256Hex(secret: string, body: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const supabase = createClient(
@@ -80,44 +77,59 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // ── Optional shared-secret verification ──
+  const rawBody = await req.text();
+
+  // ── Signature verification (401 on failure when secret is set) ──
   const sharedSecret = Deno.env.get("CHEAPDATAHUB_WEBHOOK_SECRET");
+  const provided =
+    req.headers.get("x-cheapdatahub-signature") ??
+    req.headers.get("x-signature") ??
+    req.headers.get("x-webhook-secret");
+
   if (sharedSecret) {
-    const provided =
-      req.headers.get("x-webhook-secret") ??
-      req.headers.get("x-cheapdatahub-signature") ??
-      req.headers.get("x-signature");
-    if (provided !== sharedSecret) {
-      console.warn("[CDH-WEBHOOK] signature mismatch");
-      return json({ error: "Invalid signature" }, 400);
+    if (!provided) {
+      console.warn("[CDH-WEBHOOK] 401 missing signature header");
+      await supabase.from("webhook_logs").insert({
+        provider: "cheapdatahub", status: "rejected",
+        payload: { reason: "missing signature" },
+      }).then(() => {}, () => {});
+      return json({ error: "Missing signature" }, 401);
+    }
+    // Accept either raw shared secret OR HMAC-SHA256(rawBody, secret) hex
+    const hmac = await hmacSha256Hex(sharedSecret, rawBody);
+    const ok = provided === sharedSecret || provided.toLowerCase() === hmac.toLowerCase();
+    if (!ok) {
+      console.warn("[CDH-WEBHOOK] 401 signature mismatch");
+      return json({ error: "Invalid signature" }, 401);
     }
   }
 
   let payload: any;
-  try {
-    payload = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON" }, 400);
-  }
+  try { payload = JSON.parse(rawBody); }
+  catch { return json({ error: "Invalid JSON" }, 400); }
 
-  console.log("[CDH-WEBHOOK] payload:", JSON.stringify(payload).slice(0, 1000));
+  console.log("[CDH-WEBHOOK] payload:", rawBody.slice(0, 1000));
 
   const reference = pickReference(payload);
-  const status = pickStatus(payload);
+  const status = mapStatus(payload);
   const providerRef = pickProviderRef(payload);
   const reason = pickReason(payload);
   const eventId = pickEventId(payload, reference, status);
+
+  // Log every request
+  await supabase.from("webhook_logs").insert({
+    provider: "cheapdatahub", status, reference, payload,
+  }).then(() => {}, (e) => console.error("[CDH-WEBHOOK] log err", e));
 
   if (!reference) {
     console.error("[CDH-WEBHOOK] no reference in payload");
     return json({ error: "Missing transaction reference" }, 400);
   }
 
-  // ── Idempotency: insert event row; UNIQUE on event_id blocks dupes ──
+  // ── Idempotency: UNIQUE(event_id) blocks duplicate deliveries ──
   const { error: insertErr } = await supabase
     .from("cheapdatahub_webhook_events")
     .insert({ event_id: eventId, reference, status, payload });
-
   if (insertErr) {
     if (insertErr.code === "23505") {
       console.log(`[CDH-WEBHOOK] duplicate event ${eventId} — skipping`);
@@ -150,33 +162,35 @@ serve(async (req) => {
       p_provider_reference: providerRef,
       p_api_response: payload,
     });
-    if (error) {
-      console.error("[CDH-WEBHOOK] settle success error:", error);
-      return json({ error: error.message }, 500);
-    }
+    if (error) return json({ error: error.message }, 500);
     console.log("[CDH-WEBHOOK] settled success:", data);
   } else if (status === "failed") {
     const { data, error } = await supabase.rpc("settle_service_transaction_failure", {
-      p_reference: reference,
-      p_reason: reason,
-      p_api_response: payload,
+      p_reference: reference, p_reason: reason, p_api_response: payload,
     });
-    if (error) {
-      console.error("[CDH-WEBHOOK] settle failure error:", error);
-      return json({ error: error.message }, 500);
-    }
+    if (error) return json({ error: error.message }, 500);
     console.log("[CDH-WEBHOOK] settled failure:", data);
-  } else {
-    // pending / unknown — keep transaction open, update latest status
+  } else if (status === "refunded") {
+    const { data, error } = await supabase.rpc("settle_service_transaction_refund", {
+      p_reference: reference, p_reason: reason, p_api_response: payload,
+    });
+    if (error) return json({ error: error.message }, 500);
+    console.log("[CDH-WEBHOOK] settled refund:", data);
+  } else if (status === "pending" || status === "processing") {
     await supabase
       .from("service_transactions")
-      .update({ status: "pending", api_response: payload })
+      .update({
+        status: status === "processing" ? "processing" : "pending",
+        api_response: payload,
+        provider_reference: providerRef ?? undefined,
+      })
       .eq("reference", reference)
       .in("status", ["initiated", "pending", "processing"]);
-    console.log(`[CDH-WEBHOOK] kept pending for ${reference}`);
+    console.log(`[CDH-WEBHOOK] set ${status} for ${reference}`);
+  } else {
+    console.warn(`[CDH-WEBHOOK] unknown status for ${reference} — no state change`);
   }
 
-  // mark event processed
   await supabase
     .from("cheapdatahub_webhook_events")
     .update({ processed_at: new Date().toISOString() })
