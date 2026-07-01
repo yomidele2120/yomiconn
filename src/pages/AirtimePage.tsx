@@ -30,12 +30,24 @@ export default function AirtimePage() {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [apiProvider, setApiProvider] = useState<ApiProviderKey>("cheapdatahub");
+  const [autoDetected, setAutoDetected] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
   const quickAmounts = [100, 200, 500, 1000, 2000, 5000];
   const numAmount = Number(amount) || 0;
   const balance = wallet?.balance ?? 0;
+
+  useEffect(() => {
+    const detected = detectNetwork(phone);
+    if (detected && detected.id !== provider) {
+      setProvider(detected.id);
+      setAutoDetected(true);
+    } else if (!detected) {
+      setAutoDetected(false);
+    }
+  }, [phone]);
 
   const handlePurchaseClick = () => {
     if (!provider || !phone || !amount) return toast.error("Please fill all fields");
@@ -53,7 +65,7 @@ export default function AirtimePage() {
           provider_id: provider,
           phone_number: phone,
           amount: numAmount,
-          provider_source: DEFAULT_AIRTIME_PROVIDER,
+          provider_source: apiProvider,
         },
       });
       if (error) {
