@@ -8,16 +8,18 @@ const corsHeaders = {
 
 const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api/v1/resellers';
 const HD_BASE_URL = 'https://hadidata.com/api';
+const BDS_BASE_URL = 'https://bilaldatasub.com/api';
 
-// Network mapping: our frontend IDs → Hadi Data network IDs
+// Network mapping: our frontend IDs → third-party network IDs
 // Ours: 1=MTN, 2=Airtel, 3=Glo, 4=9mobile
-// Hadi: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
+// Hadi/Bilal: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
 const HD_NETWORK_MAP: Record<string, number> = {
   '1': 1,
   '2': 4,
   '3': 2,
   '4': 3,
 };
+const BDS_NETWORK_MAP = HD_NETWORK_MAP;
 
 // ─── Provider API helpers ───
 
@@ -120,6 +122,59 @@ async function callHadiData(
   return { ok: isSuccess, data };
 }
 
+// ─── BilalDataSub caller ───
+async function callBilalDataSub(
+  apiKey: string,
+  serviceType: string,
+  params: Record<string, any>,
+  amount: number
+): Promise<{ ok: boolean; data: any }> {
+  let endpoint = '';
+  let apiBody: Record<string, any> = {};
+  const bdsNetwork = BDS_NETWORK_MAP[params.provider_id] || BDS_NETWORK_MAP[params.network_id] || 1;
+
+  switch (serviceType) {
+    case 'airtime':
+      endpoint = '/topup/';
+      apiBody = { network: bdsNetwork, amount, mobile_number: params.phone_number, Ported_number: true, airtime_type: 'VTU' };
+      break;
+    case 'data':
+      endpoint = '/data/';
+      apiBody = { network: bdsNetwork, mobile_number: params.phone_number, plan: Number(params.provider_plan_id || params.bundle_id), Ported_number: true };
+      break;
+    case 'electricity':
+      endpoint = '/billpayment/';
+      apiBody = { disco_name: params.disco, amount, meter_number: params.meter_no, MeterType: params.meter_type === 'prepaid' ? 1 : 2 };
+      break;
+    case 'cable':
+      endpoint = '/cablesub/';
+      apiBody = { cablename: params.cable_name_id || 1, cableplan: Number(params.provider_plan_id || params.plan_id), smart_card_number: params.smartcard_no };
+      break;
+    default:
+      throw new Error('Invalid service type');
+  }
+
+  console.log(`[BDS] POST ${endpoint}`, JSON.stringify(apiBody));
+
+  const res = await fetch(`${BDS_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(apiBody),
+  });
+
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
+
+  const rawStatus = String(data?.status ?? data?.Status ?? data?.transaction_status ?? '').toLowerCase();
+  const isSuccess = res.ok && ['success','successful','completed','delivered'].includes(rawStatus);
+  const isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
+  const providerRef = data?.id ?? data?.transaction_id ?? data?.reference ?? null;
+
+  console.log(`[BDS] http=${res.status} raw=${rawStatus} success=${isSuccess} pending=${isPending}`);
+  return { ok: isSuccess, pending: isPending, providerRef, data };
+}
+
 // ─── Provider registry ───
 type ProviderResult = { ok: boolean; pending?: boolean; providerRef?: string | null; data: any };
 type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, any>, amount: number) => Promise<ProviderResult>;
@@ -131,11 +186,13 @@ interface ProviderConfig {
 }
 
 const PROVIDERS: Record<string, ProviderConfig> = {
-  cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUH_API_KEY', call: callCheapDataHub },
+  cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUH_API_KEY',   call: callCheapDataHub },
+  bilaldatasub:  { name: 'BilalDataSub', envKey: 'BILALDATASUB_API_KEY',   call: callBilalDataSub },
 };
 
-// CheapDataHub is the sole source of truth (no fallback).
-const FALLBACK_ORDER = ['cheapdatahub'];
+// User selects the provider explicitly on the page; no automatic fallback
+// so pricing shown always matches which API is actually charged.
+const FALLBACK_ORDER: string[] = [];
 
 // ─── Main handler ───
 serve(async (req) => {

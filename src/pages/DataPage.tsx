@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Wifi } from "lucide-react";
+import { ArrowLeft, Loader2, Wifi, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
+import { detectNetwork } from "@/lib/networkDetect";
 
 const networks = [
   { id: "1", name: "MTN", color: "bg-warning text-white" },
@@ -16,6 +17,12 @@ const networks = [
   { id: "3", name: "Glo", color: "bg-success text-white" },
   { id: "4", name: "9mobile", color: "bg-foreground text-white" },
 ];
+
+const PROVIDERS = [
+  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
+  { key: "bilaldatasub", label: "Provider 2", sub: "BilalDataSub" },
+] as const;
+type ProviderKey = typeof PROVIDERS[number]["key"];
 
 interface DataBundle {
   id: string;
@@ -35,20 +42,33 @@ export default function DataPage() {
   const [bundlesLoading, setBundlesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [providerKey, setProviderKey] = useState<ProviderKey>("cheapdatahub");
+  const [autoDetected, setAutoDetected] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
   const balance = wallet?.balance ?? 0;
 
   useEffect(() => {
-    if (network) fetchBundles(network);
-  }, [network]);
+    if (network) fetchBundles(network, providerKey);
+  }, [network, providerKey]);
 
-  const fetchBundles = async (networkId: string) => {
+  // Auto-detect network from phone prefix
+  useEffect(() => {
+    const detected = detectNetwork(phone);
+    if (detected && detected.id !== network) {
+      setNetwork(detected.id);
+      setAutoDetected(true);
+    } else if (!detected) {
+      setAutoDetected(false);
+    }
+  }, [phone]);
+
+  const fetchBundles = async (networkId: string, source: ProviderKey) => {
     setBundlesLoading(true);
     setBundleId("");
     try {
       const { data, error } = await supabase.functions.invoke("get-data-bundles", {
-        body: { network_id: networkId },
+        body: { network_id: networkId, provider_source: source },
       });
       if (error) throw error;
       setBundles(data?.bundles ?? []);
@@ -120,13 +140,39 @@ export default function DataPage() {
 
         <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
           <div>
-            <p className="label-eyebrow mb-3">Select Network</p>
+            <p className="label-eyebrow mb-3">Choose Provider</p>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-2xl">
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setProviderKey(p.key)}
+                  className={`h-14 rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition ${
+                    providerKey === p.key ? "bg-card shadow-premium text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>{p.label}</span>
+                  <span className="text-[10px] font-normal opacity-70">{p.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="label-eyebrow">Select Network</p>
+              {autoDetected && network && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                  <Sparkles className="w-3 h-3" /> Auto-detected
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-4 gap-2">
               {networks.map((n) => (
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => setNetwork(n.id)}
+                  onClick={() => { setNetwork(n.id); setAutoDetected(false); }}
                   className={`h-16 rounded-2xl flex items-center justify-center text-xs font-semibold border-2 transition ${
                     network === n.id ? `${n.color} border-transparent shadow-premium scale-[1.02]` : "bg-muted/60 border-transparent hover:bg-muted"
                   }`}
