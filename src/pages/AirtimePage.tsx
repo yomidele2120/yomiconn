@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Phone } from "lucide-react";
+import { ArrowLeft, Loader2, Phone, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
+import { detectNetwork } from "@/lib/networkDetect";
 
 const providers = [
   { id: "1", name: "MTN", color: "bg-warning text-white" },
@@ -16,7 +17,11 @@ const providers = [
   { id: "4", name: "9mobile", color: "bg-foreground text-white" },
 ];
 
-const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
+const API_PROVIDERS = [
+  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
+  { key: "bilaldatasub", label: "Provider 2", sub: "BilalDataSub" },
+] as const;
+type ApiProviderKey = typeof API_PROVIDERS[number]["key"];
 
 export default function AirtimePage() {
   const navigate = useNavigate();
@@ -25,12 +30,24 @@ export default function AirtimePage() {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [apiProvider, setApiProvider] = useState<ApiProviderKey>("cheapdatahub");
+  const [autoDetected, setAutoDetected] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
 
   const quickAmounts = [100, 200, 500, 1000, 2000, 5000];
   const numAmount = Number(amount) || 0;
   const balance = wallet?.balance ?? 0;
+
+  useEffect(() => {
+    const detected = detectNetwork(phone);
+    if (detected && detected.id !== provider) {
+      setProvider(detected.id);
+      setAutoDetected(true);
+    } else if (!detected) {
+      setAutoDetected(false);
+    }
+  }, [phone]);
 
   const handlePurchaseClick = () => {
     if (!provider || !phone || !amount) return toast.error("Please fill all fields");
@@ -48,7 +65,7 @@ export default function AirtimePage() {
           provider_id: provider,
           phone_number: phone,
           amount: numAmount,
-          provider_source: DEFAULT_AIRTIME_PROVIDER,
+          provider_source: apiProvider,
         },
       });
       if (error) {
@@ -87,13 +104,39 @@ export default function AirtimePage() {
 
         <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
           <div>
-            <p className="label-eyebrow mb-3">Select Network</p>
+            <p className="label-eyebrow mb-3">Choose Provider</p>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-2xl">
+              {API_PROVIDERS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setApiProvider(p.key)}
+                  className={`h-14 rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition ${
+                    apiProvider === p.key ? "bg-card shadow-premium text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>{p.label}</span>
+                  <span className="text-[10px] font-normal opacity-70">{p.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="label-eyebrow">Select Network</p>
+              {autoDetected && provider && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                  <Sparkles className="w-3 h-3" /> Auto-detected
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-4 gap-2">
               {providers.map((p) => (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setProvider(p.id)}
+                  onClick={() => { setProvider(p.id); setAutoDetected(false); }}
                   className={`h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-semibold border-2 transition ${
                     provider === p.id
                       ? `${p.color} border-transparent shadow-premium scale-[1.02]`

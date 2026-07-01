@@ -9,9 +9,9 @@ const corsHeaders = {
 const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api/v1/resellers';
 const ELRUFAI_BASE_URL = Deno.env.get('ELRUFAI_BASE_URL') || 'https://api.elrufaids.com';
 
-// Network mapping: our frontend IDs → ElRufai network IDs
+// Network mapping: our frontend IDs → Provider 2 network IDs
 // Ours: 1=MTN, 2=Airtel, 3=Glo, 4=9mobile
-// ElRufai: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
+// Provider 2: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
 const ELRUFAI_NETWORK_MAP: Record<string, number> = {
   '1': 1,
   '2': 4,
@@ -62,8 +62,15 @@ async function callCheapDataHub(
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
-  console.log(`[CDH] status=${res.status}, ok=${res.ok}`, JSON.stringify(data).substring(0, 300));
-  return { ok: res.ok, data };
+
+  // Detect provider state from response body (CDH varies by endpoint)
+  const rawStatus = String(data?.status ?? data?.transaction_status ?? data?.data?.status ?? '').toLowerCase();
+  const isSuccess = res.ok && ['success','successful','completed','delivered'].includes(rawStatus);
+  const isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
+  const providerRef = data?.transaction_id ?? data?.reference ?? data?.data?.transaction_id ?? data?.data?.reference ?? null;
+
+  console.log(`[CDH] http=${res.status} raw=${rawStatus} success=${isSuccess} pending=${isPending}`);
+  return { ok: isSuccess, pending: isPending, providerRef, data };
 }
 
 async function callElRufaiDataSub(
@@ -113,8 +120,62 @@ async function callElRufaiDataSub(
   return { ok: isSuccess, data };
 }
 
+// ─── BilalDataSub caller ───
+async function callBilalDataSub(
+  apiKey: string,
+  serviceType: string,
+  params: Record<string, any>,
+  amount: number
+): Promise<{ ok: boolean; data: any }> {
+  let endpoint = '';
+  let apiBody: Record<string, any> = {};
+  const bdsNetwork = BDS_NETWORK_MAP[params.provider_id] || BDS_NETWORK_MAP[params.network_id] || 1;
+
+  switch (serviceType) {
+    case 'airtime':
+      endpoint = '/topup/';
+      apiBody = { network: bdsNetwork, amount, mobile_number: params.phone_number, Ported_number: true, airtime_type: 'VTU' };
+      break;
+    case 'data':
+      endpoint = '/data/';
+      apiBody = { network: bdsNetwork, mobile_number: params.phone_number, plan: Number(params.provider_plan_id || params.bundle_id), Ported_number: true };
+      break;
+    case 'electricity':
+      endpoint = '/billpayment/';
+      apiBody = { disco_name: params.disco, amount, meter_number: params.meter_no, MeterType: params.meter_type === 'prepaid' ? 1 : 2 };
+      break;
+    case 'cable':
+      endpoint = '/cablesub/';
+      apiBody = { cablename: params.cable_name_id || 1, cableplan: Number(params.provider_plan_id || params.plan_id), smart_card_number: params.smartcard_no };
+      break;
+    default:
+      throw new Error('Invalid service type');
+  }
+
+  console.log(`[BDS] POST ${endpoint}`, JSON.stringify(apiBody));
+
+  const res = await fetch(`${BDS_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(apiBody),
+  });
+
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
+
+  const rawStatus = String(data?.status ?? data?.Status ?? data?.transaction_status ?? '').toLowerCase();
+  const isSuccess = res.ok && ['success','successful','completed','delivered'].includes(rawStatus);
+  const isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
+  const providerRef = data?.id ?? data?.transaction_id ?? data?.reference ?? null;
+
+  console.log(`[BDS] http=${res.status} raw=${rawStatus} success=${isSuccess} pending=${isPending}`);
+  return { ok: isSuccess, pending: isPending, providerRef, data };
+}
+
 // ─── Provider registry ───
-type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, any>, amount: number) => Promise<{ ok: boolean; data: any }>;
+type ProviderResult = { ok: boolean; pending?: boolean; providerRef?: string | null; data: any };
+type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, any>, amount: number) => Promise<ProviderResult>;
 
 interface ProviderConfig {
   name: string;
@@ -209,7 +270,7 @@ serve(async (req) => {
 
     // ── Try providers with fallback ──
     const providerOrder = [requestedSource, ...FALLBACK_ORDER.filter(p => p !== requestedSource)];
-    let result: { ok: boolean; data: any } | null = null;
+    let result: ProviderResult | null = null;
     let usedProvider = '';
     let lastError = '';
 
@@ -228,8 +289,8 @@ serve(async (req) => {
         result = await provider.call(apiKey, service_type, params, amount);
         usedProvider = providerKey;
 
-        if (result.ok) {
-          console.log(`[PURCHASE] ${provider.name} SUCCESS`);
+        if (result.ok || result.pending) {
+          console.log(`[PURCHASE] ${provider.name} ${result.ok ? 'SUCCESS' : 'PENDING'}`);
           break;
         } else {
           lastError = result.data?.message || result.data?.api_response || result.data?.detail || `${provider.name} failed`;
@@ -244,58 +305,57 @@ serve(async (req) => {
     }
 
     // ── All providers failed → mark failed, do NOT deduct ──
-    if (!result || !result.ok) {
+    if (!result || (!result.ok && !result.pending)) {
       console.log(`[PURCHASE] ALL PROVIDERS FAILED – no wallet deduction`);
-      await supabaseAdmin
-        .from('service_transactions')
-        .update({ status: 'failed', api_response: result?.data || { error: lastError } })
-        .eq('reference', reference);
-
+      await supabaseAdmin.rpc('settle_service_transaction_failure', {
+        p_reference: reference,
+        p_reason: lastError || 'All providers failed',
+        p_api_response: result?.data || { error: lastError },
+      });
       return json({ error: lastError || 'All providers failed. Please try again later.' }, 502);
     }
 
-    // ── Provider succeeded → NOW deduct wallet atomically ──
-    const { data: deductResult, error: deductError } = await supabaseAdmin.rpc('deduct_wallet', {
-      p_user_id: user.id, p_amount: amount, p_reference: reference,
-    });
-
-    if (deductError) {
-      console.error(`[PURCHASE] Wallet deduction error after API success: ${deductError.message}`);
-      // API succeeded but wallet deduction failed – mark as needs-attention
+    // ── Async pending → keep open, webhook will settle ──
+    if (result.pending && !result.ok) {
       await supabaseAdmin
         .from('service_transactions')
-        .update({ status: 'completed_no_debit', api_response: result.data })
+        .update({
+          status: 'pending',
+          api_response: result.data,
+          provider_reference: result.providerRef,
+          provider: `${usedProvider}:${params.provider_id || params.disco || params.plan_id || ''}`,
+        })
         .eq('reference', reference);
 
+      console.log(`[PURCHASE] PENDING via ${usedProvider}, awaiting webhook for ${reference}`);
+      return json({ success: true, pending: true, reference, provider: usedProvider, data: result.data }, 200);
+    }
+
+    // ── Immediate success → settle atomically (deduct wallet + mark success) ──
+    const { data: settleResult, error: settleError } = await supabaseAdmin.rpc(
+      'settle_service_transaction_success',
+      {
+        p_reference: reference,
+        p_provider_reference: result.providerRef,
+        p_api_response: result.data,
+      }
+    );
+
+    if (settleError) {
+      console.error(`[PURCHASE] Settlement error: ${settleError.message}`);
       return json({ error: 'Purchase completed but wallet update failed. Contact support.' }, 500);
     }
 
-    if (deductResult?.status === 'duplicate') {
-      return json({ success: true, duplicate: true, reference, message: 'Transaction already processed' }, 200);
+    if (settleResult?.status === 'no_debit') {
+      return json({ error: 'Purchase delivered but wallet had insufficient balance. Contact support.' }, 500);
     }
 
-    if (deductResult?.status === 'error') {
-      // Balance changed between check and deduction (race condition)
-      await supabaseAdmin
-        .from('service_transactions')
-        .update({ status: 'completed_no_debit', api_response: result.data })
-        .eq('reference', reference);
-
-      return json({ error: deductResult.message || 'Wallet deduction failed after purchase' }, 500);
-    }
-
-    // ── Mark successful ──
     await supabaseAdmin
       .from('service_transactions')
-      .update({
-        status: 'successful',
-        api_response: result.data,
-        provider: `${usedProvider}:${params.provider_id || params.disco || params.plan_id || ''}`,
-      })
+      .update({ provider: `${usedProvider}:${params.provider_id || params.disco || params.plan_id || ''}` })
       .eq('reference', reference);
 
     console.log(`[PURCHASE] COMPLETE via ${usedProvider}, ref=${reference}`);
-
     return json({ success: true, reference, provider: usedProvider, data: result.data }, 200);
 
   } catch (error) {
