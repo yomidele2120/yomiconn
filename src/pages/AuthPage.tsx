@@ -139,6 +139,12 @@ export default function AuthPage() {
           background: #F9FAFB !important;
           border: 1.5px solid transparent !important;
           font-size: 15px !important;
+          color: #111827 !important;
+          caret-color: #111827 !important;
+        }
+        .auth-input::placeholder {
+          color: #9CA3AF !important;
+          opacity: 1 !important;
         }
         .auth-input:focus-visible {
           border-color: hsl(var(--primary)) !important;

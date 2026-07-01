@@ -54,7 +54,7 @@ export default function FundWalletDialog({ open, onOpenChange }: Props) {
                 <input
                   inputMode="numeric" placeholder="0"
                   value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                  className="bg-transparent text-[40px] font-extrabold text-foreground w-40 text-center focus:outline-none"
+                  className="bg-transparent text-[40px] font-extrabold text-foreground w-40 text-center caret-current placeholder:text-gray-400 focus:outline-none"
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">Minimum ₦200</p>

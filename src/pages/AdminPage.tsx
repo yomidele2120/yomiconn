@@ -648,7 +648,7 @@ export default function AdminPage() {
                   </p>
                   <ul className="mt-2 space-y-1 text-sm">
                     <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> CHEAPDATAHUB_API_KEY</li>
-                    <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> HADI_DATA_API</li>
+                    <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> ELRUFAI_API_KEY / ELRUFAIDATALINK_API_KEY / HADI_DATA_API</li>
                     <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> BLESSDATA_API_KEY</li>
                     <li className="flex items-center gap-2"><Badge variant="default">Set</Badge> PAYSTACK_SECRET_KEY</li>
                   </ul>

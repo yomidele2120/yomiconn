@@ -159,18 +159,18 @@ export default function ProfilePage() {
             <div className="space-y-4">
               <Field label="Email">
                 <input value={user?.email || ""} disabled
-                  className="w-full h-12 px-4 rounded-xl bg-muted/50 text-muted-foreground text-sm" />
+                  className="w-full h-12 px-4 rounded-xl bg-muted/50 text-muted-foreground text-sm caret-current" />
               </Field>
               <Field label="Full name">
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)}
                   placeholder="Your full name"
-                  className="w-full h-12 px-4 rounded-xl bg-card border border-border text-sm focus:outline-none focus:border-primary" />
+                  className="w-full h-12 px-4 rounded-xl bg-card border border-border text-sm text-foreground caret-current placeholder:text-gray-400 focus:outline-none focus:border-primary" />
               </Field>
               <Field label="Phone number">
                 <input type="tel" value={phone} maxLength={11}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   placeholder="08012345678"
-                  className="w-full h-12 px-4 rounded-xl bg-card border border-border text-sm focus:outline-none focus:border-primary" />
+                  className="w-full h-12 px-4 rounded-xl bg-card border border-border text-sm text-foreground caret-current placeholder:text-gray-400 focus:outline-none focus:border-primary" />
               </Field>
               <button onClick={handleSave} disabled={saving}
                 className="w-full h-12 mt-2 rounded-xl wallet-gradient text-white font-semibold shadow-premium flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99]">
@@ -213,13 +213,13 @@ export default function ProfilePage() {
                 <input type="password" inputMode="numeric" maxLength={6} placeholder="4-6 digits"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
-                  className="w-full h-12 px-4 rounded-xl bg-card border border-border tracking-[0.5em] text-center text-lg focus:outline-none focus:border-primary" />
+                  className="w-full h-12 px-4 rounded-xl bg-card border border-border tracking-[0.5em] text-center text-lg text-foreground caret-current placeholder:text-gray-400 focus:outline-none focus:border-primary" />
               </Field>
               <Field label="Confirm PIN">
                 <input type="password" inputMode="numeric" maxLength={6} placeholder="Re-enter PIN"
                   value={confirmNewPin}
                   onChange={(e) => setConfirmNewPin(e.target.value.replace(/\D/g, ""))}
-                  className="w-full h-12 px-4 rounded-xl bg-card border border-border tracking-[0.5em] text-center text-lg focus:outline-none focus:border-primary" />
+                  className="w-full h-12 px-4 rounded-xl bg-card border border-border tracking-[0.5em] text-center text-lg text-foreground caret-current placeholder:text-gray-400 focus:outline-none focus:border-primary" />
               </Field>
 
               <button onClick={handlePinSubmit} disabled={pinSaving || newPin.length < 4}

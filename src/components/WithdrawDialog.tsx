@@ -87,7 +87,7 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
             <div className="px-5 py-5 space-y-4">
               <Field label="Bank">
                 <select value={bankCode} onChange={(e) => setBankCode(e.target.value)}
-                  className="w-full h-11 px-3 rounded-[10px] bg-surface-elevated border border-border text-sm text-foreground focus:outline-none focus:border-primary">
+                  className="w-full h-11 px-3 rounded-[10px] bg-surface-elevated border border-border text-sm text-foreground caret-current focus:outline-none focus:border-primary">
                   <option value="">Select bank</option>
                   {banks.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
                 </select>
@@ -97,7 +97,7 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
                 <input inputMode="numeric" maxLength={10} value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="10-digit account number"
-                  className="w-full h-11 px-3 rounded-[10px] bg-surface-elevated border border-border text-sm text-foreground focus:outline-none focus:border-primary" />
+                  className="w-full h-11 px-3 rounded-[10px] bg-surface-elevated border border-border text-sm text-foreground caret-current placeholder:text-gray-400 focus:outline-none focus:border-primary" />
               </Field>
 
               {(resolving || accountName) && (
@@ -111,7 +111,7 @@ export default function WithdrawDialog({ open, onOpenChange, walletBalance }: Pr
                 <input inputMode="numeric" value={amount}
                   onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
                   placeholder="0"
-                  className="w-full h-11 px-3 rounded-[10px] bg-surface-elevated border border-border text-sm text-foreground focus:outline-none focus:border-primary" />
+                  className="w-full h-11 px-3 rounded-[10px] bg-surface-elevated border border-border text-sm text-foreground caret-current placeholder:text-gray-400 focus:outline-none focus:border-primary" />
               </Field>
 
               <button

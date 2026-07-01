@@ -23,5 +23,5 @@ CREATE TRIGGER update_api_providers_updated_at BEFORE UPDATE ON public.api_provi
 -- Seed default providers
 INSERT INTO public.api_providers (provider_key, display_name, base_url, is_active) VALUES
   ('cheapdatahub', 'CheapDataHub', 'https://www.cheapdatahub.ng/api/v1/resellers', true),
-  ('hadidata', 'Hadi Data', 'https://hadidata.com/api', false),
+  ('elrufai', 'ElRufaiDataSub', 'https://api.elrufaids.com', false),
   ('blessdata', 'BlessData', 'https://blessdata.com.ng/api', false);

@@ -237,7 +237,7 @@ export default function InAppChatbot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type a message..."
-                className="flex-1 bg-muted rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                className="flex-1 bg-muted rounded-full px-4 py-2 text-sm text-foreground caret-current placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-primary/30"
                 disabled={isLoading}
               />
               <Button

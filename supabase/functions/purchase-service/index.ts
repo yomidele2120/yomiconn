@@ -7,12 +7,12 @@ const corsHeaders = {
 };
 
 const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api/v1/resellers';
-const HD_BASE_URL = 'https://hadidata.com/api';
+const ELRUFAI_BASE_URL = Deno.env.get('ELRUFAI_BASE_URL') || 'https://api.elrufaids.com';
 
-// Network mapping: our frontend IDs → Hadi Data network IDs
+// Network mapping: our frontend IDs → ElRufai network IDs
 // Ours: 1=MTN, 2=Airtel, 3=Glo, 4=9mobile
-// Hadi: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
-const HD_NETWORK_MAP: Record<string, number> = {
+// ElRufai: 1=MTN, 2=GLO, 3=9Mobile, 4=Airtel
+const ELRUFAI_NETWORK_MAP: Record<string, number> = {
   '1': 1,
   '2': 4,
   '3': 2,
@@ -66,7 +66,7 @@ async function callCheapDataHub(
   return { ok: res.ok, data };
 }
 
-async function callHadiData(
+async function callElRufaiDataSub(
   apiKey: string,
   serviceType: string,
   params: Record<string, any>,
@@ -74,16 +74,16 @@ async function callHadiData(
 ): Promise<{ ok: boolean; data: any }> {
   let endpoint = '';
   let apiBody: Record<string, any> = {};
-  const hdNetwork = HD_NETWORK_MAP[params.provider_id] || HD_NETWORK_MAP[params.network_id] || 1;
+  const elrufaiNetwork = ELRUFAI_NETWORK_MAP[params.provider_id] || ELRUFAI_NETWORK_MAP[params.network_id] || 1;
 
   switch (serviceType) {
     case 'airtime':
       endpoint = '/airtime/';
-      apiBody = { network: hdNetwork, amount, mobile_number: params.phone_number, Ported_number: true, airtime_type: 'VTU' };
+      apiBody = { network: elrufaiNetwork, amount, mobile_number: params.phone_number, Ported_number: true, airtime_type: 'VTU' };
       break;
     case 'data':
       endpoint = '/data/';
-      apiBody = { network: hdNetwork, mobile_number: params.phone_number, plan: Number(params.provider_plan_id || params.bundle_id), Ported_number: true };
+      apiBody = { network: elrufaiNetwork, mobile_number: params.phone_number, plan: Number(params.provider_plan_id || params.bundle_id), Ported_number: true };
       break;
     case 'electricity':
       endpoint = '/electricity/';
@@ -97,9 +97,9 @@ async function callHadiData(
       throw new Error('Invalid service type');
   }
 
-  console.log(`[HD] POST ${endpoint}`, JSON.stringify(apiBody));
+  console.log(`[ELRUFAI] POST ${endpoint}`, JSON.stringify(apiBody));
 
-  const res = await fetch(`${HD_BASE_URL}${endpoint}`, {
+  const res = await fetch(`${ELRUFAI_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(apiBody),
@@ -109,7 +109,7 @@ async function callHadiData(
   let data;
   try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
   const isSuccess = res.ok && (data.status === 'successful' || data.Status === 'successful');
-  console.log(`[HD] status=${res.status}, isSuccess=${isSuccess}`, JSON.stringify(data).substring(0, 300));
+  console.log(`[ELRUFAI] status=${res.status}, isSuccess=${isSuccess}`, JSON.stringify(data).substring(0, 300));
   return { ok: isSuccess, data };
 }
 
@@ -118,15 +118,17 @@ type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, a
 
 interface ProviderConfig {
   name: string;
-  envKey: string;
+  envKeys: string[];
   call: ProviderFn;
 }
 
 const PROVIDERS: Record<string, ProviderConfig> = {
-  cheapdatahub:  { name: 'CheapDataHub', envKey: 'CHEAPDATAHUH_API_KEY', call: callCheapDataHub },
+  cheapdatahub: { name: 'CheapDataHub', envKeys: ['CHEAPDATAHUH_API_KEY'], call: callCheapDataHub },
+  hadidata:   { name: 'ElRufaiDataSub', envKeys: ['ELRUFAI_API_KEY', 'ELRUFAIDATALINK_API_KEY', 'HADI_DATA_API'], call: callElRufaiDataSub },
+  elrufai:    { name: 'ElRufaiDataSub', envKeys: ['ELRUFAI_API_KEY', 'ELRUFAIDATALINK_API_KEY', 'HADI_DATA_API'], call: callElRufaiDataSub },
 };
 
-// CheapDataHub is the sole source of truth (no fallback).
+// CheapDataHub remains the default fallback provider.
 const FALLBACK_ORDER = ['cheapdatahub'];
 
 // ─── Main handler ───
@@ -215,9 +217,9 @@ serve(async (req) => {
       const provider = PROVIDERS[providerKey];
       if (!provider) continue;
 
-      const apiKey = Deno.env.get(provider.envKey);
+      const apiKey = provider.envKeys.map((key) => Deno.env.get(key)).find(Boolean);
       if (!apiKey) {
-        console.log(`[PURCHASE] Skipping ${provider.name}: no API key configured`);
+        console.log(`[PURCHASE] Skipping ${provider.name}: no API key configured (${provider.envKeys.join(', ')})`);
         continue;
       }
 

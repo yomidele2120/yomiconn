@@ -85,19 +85,10 @@
     @apply font-heading;
     letter-spacing: -0.02em;
   }
-  input, textarea, select { color-scheme: dark; }
-}
-
-@layer utilities {
-  /* Solid replacements for legacy gradient utilities — no gradients anywhere */
-  .wallet-gradient,
-  .premium-gradient,
-  .gold-gradient {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
+  input, textarea, select {
+    color-scheme: dark;
+    caret-color: currentColor;
   }
-  .success-gradient {
-    background: hsl(145 63% 18%);
     color: hsl(var(--success));
     border: 1px solid hsl(var(--success) / 0.3);
   }
