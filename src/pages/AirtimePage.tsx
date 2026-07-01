@@ -104,13 +104,39 @@ export default function AirtimePage() {
 
         <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
           <div>
-            <p className="label-eyebrow mb-3">Select Network</p>
+            <p className="label-eyebrow mb-3">Choose Provider</p>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-2xl">
+              {API_PROVIDERS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setApiProvider(p.key)}
+                  className={`h-14 rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition ${
+                    apiProvider === p.key ? "bg-card shadow-premium text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>{p.label}</span>
+                  <span className="text-[10px] font-normal opacity-70">{p.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="label-eyebrow">Select Network</p>
+              {autoDetected && provider && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                  <Sparkles className="w-3 h-3" /> Auto-detected
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-4 gap-2">
               {providers.map((p) => (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setProvider(p.id)}
+                  onClick={() => { setProvider(p.id); setAutoDetected(false); }}
                   className={`h-16 rounded-2xl flex flex-col items-center justify-center text-xs font-semibold border-2 transition ${
                     provider === p.id
                       ? `${p.color} border-transparent shadow-premium scale-[1.02]`
