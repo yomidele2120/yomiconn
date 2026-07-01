@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Wifi } from "lucide-react";
+import { ArrowLeft, Loader2, Wifi, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
+import { detectNetwork } from "@/lib/networkDetect";
 
 const networks = [
   { id: "1", name: "MTN", color: "bg-warning text-white" },
@@ -16,6 +17,12 @@ const networks = [
   { id: "3", name: "Glo", color: "bg-success text-white" },
   { id: "4", name: "9mobile", color: "bg-foreground text-white" },
 ];
+
+const PROVIDERS = [
+  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
+  { key: "bilaldatasub", label: "Provider 2", sub: "BilalDataSub" },
+] as const;
+type ProviderKey = typeof PROVIDERS[number]["key"];
 
 interface DataBundle {
   id: string;
