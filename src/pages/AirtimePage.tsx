@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Loader2, Phone } from "lucide-react";
+import { ArrowLeft, Loader2, Phone, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
+import { detectNetwork } from "@/lib/networkDetect";
 
 const providers = [
   { id: "1", name: "MTN", color: "bg-warning text-white" },
@@ -16,7 +17,11 @@ const providers = [
   { id: "4", name: "9mobile", color: "bg-foreground text-white" },
 ];
 
-const DEFAULT_AIRTIME_PROVIDER = "cheapdatahub";
+const API_PROVIDERS = [
+  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
+  { key: "bilaldatasub", label: "Provider 2", sub: "BilalDataSub" },
+] as const;
+type ApiProviderKey = typeof API_PROVIDERS[number]["key"];
 
 export default function AirtimePage() {
   const navigate = useNavigate();
