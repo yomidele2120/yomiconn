@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { network_id } = await req.json();
+    const { network_id, provider_source } = await req.json();
     if (!network_id) throw new Error('network_id is required');
 
     const admin = createClient(
@@ -20,12 +20,14 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const { data, error } = await admin
+    let q = admin
       .from('provider_plans')
       .select('id, provider_source, provider_plan_id, name, size_mb, provider_cost, profit_amount, profit_percent')
       .eq('service_type', 'data')
       .eq('network_id', String(network_id))
       .eq('is_active', true);
+    if (provider_source) q = q.eq('provider_source', String(provider_source));
+    const { data, error } = await q;
 
     if (error) throw error;
 
