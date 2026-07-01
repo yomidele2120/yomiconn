@@ -42,20 +42,33 @@ export default function DataPage() {
   const [bundlesLoading, setBundlesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
+  const [providerKey, setProviderKey] = useState<ProviderKey>("cheapdatahub");
+  const [autoDetected, setAutoDetected] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
   const balance = wallet?.balance ?? 0;
 
   useEffect(() => {
-    if (network) fetchBundles(network);
-  }, [network]);
+    if (network) fetchBundles(network, providerKey);
+  }, [network, providerKey]);
 
-  const fetchBundles = async (networkId: string) => {
+  // Auto-detect network from phone prefix
+  useEffect(() => {
+    const detected = detectNetwork(phone);
+    if (detected && detected.id !== network) {
+      setNetwork(detected.id);
+      setAutoDetected(true);
+    } else if (!detected) {
+      setAutoDetected(false);
+    }
+  }, [phone]);
+
+  const fetchBundles = async (networkId: string, source: ProviderKey) => {
     setBundlesLoading(true);
     setBundleId("");
     try {
       const { data, error } = await supabase.functions.invoke("get-data-bundles", {
-        body: { network_id: networkId },
+        body: { network_id: networkId, provider_source: source },
       });
       if (error) throw error;
       setBundles(data?.bundles ?? []);
