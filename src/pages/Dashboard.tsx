@@ -57,6 +57,7 @@ export default function Dashboard() {
 
       <FundWalletDialog open={fundOpen} onOpenChange={setFundOpen} />
       <WithdrawDialog open={withdrawOpen} onOpenChange={setWithdrawOpen} walletBalance={balance} />
+      <CheapestDealsPopup />
     </DashboardLayout>
   );
 }
