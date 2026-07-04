@@ -211,6 +211,8 @@ export default function LandingPage() {
           <p className="text-xs sm:text-sm text-muted-foreground">© {new Date().getFullYear()} YOMIconnect. All rights reserved.</p>
         </div>
       </footer>
+
+      <CheapestDealsPopup />
     </div>
   );
 }
