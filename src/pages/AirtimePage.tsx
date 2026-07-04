@@ -19,7 +19,7 @@ const providers = [
 
 const API_PROVIDERS = [
   { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
-  { key: "bilaldatasub", label: "Provider 2", sub: "BilalDataSub" },
+  { key: "elrufaidatalink", label: "Provider 2", sub: "ElRufaiDataSub" },
 ] as const;
 type ApiProviderKey = typeof API_PROVIDERS[number]["key"];
 

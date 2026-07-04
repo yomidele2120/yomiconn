@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
 import { detectNetwork } from "@/lib/networkDetect";
 
@@ -20,9 +21,9 @@ const networks = [
 
 const PROVIDERS = [
   { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
-  { key: "bilaldatasub", label: "Provider 2", sub: "BilalDataSub" },
+  { key: "elrufaidatalink", label: "Provider 2", sub: "ElRufaiDataSub" },
 ] as const;
-type ProviderKey = typeof PROVIDERS[number]["key"];
+type ProviderKey = typeof PROVIDERS[number]["key"] | "";
 
 interface DataBundle {
   id: string;
@@ -42,14 +43,18 @@ export default function DataPage() {
   const [bundlesLoading, setBundlesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
-  const [providerKey, setProviderKey] = useState<ProviderKey>("cheapdatahub");
+  const [providerKey, setProviderKey] = useState<ProviderKey>("");
+  const [bundleError, setBundleError] = useState("");
   const [autoDetected, setAutoDetected] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
   const balance = wallet?.balance ?? 0;
 
   useEffect(() => {
-    if (network) fetchBundles(network, providerKey);
+    setBundles([]);
+    setBundleId("");
+    setBundleError("");
+    if (network && providerKey) fetchBundles(network, providerKey);
   }, [network, providerKey]);
 
   // Auto-detect network from phone prefix
@@ -66,14 +71,17 @@ export default function DataPage() {
   const fetchBundles = async (networkId: string, source: ProviderKey) => {
     setBundlesLoading(true);
     setBundleId("");
+    setBundleError("");
     try {
       const { data, error } = await supabase.functions.invoke("get-data-bundles", {
         body: { network_id: networkId, provider_source: source },
       });
       if (error) throw error;
-      setBundles(data?.bundles ?? []);
+      const list = data?.bundles ?? [];
+      setBundles(list);
+      if (!list.length) setBundleError("No bundles available for this network/provider.");
     } catch {
-      toast.error("Failed to load bundles");
+      setBundleError("Unable to load available bundles. Please try again.");
       setBundles([]);
     } finally {
       setBundlesLoading(false);
@@ -139,25 +147,20 @@ export default function DataPage() {
         </div>
 
         <div className="bg-card rounded-3xl p-5 shadow-card space-y-5">
+          {/* 1. Phone Number */}
           <div>
-            <p className="label-eyebrow mb-3">Choose Provider</p>
-            <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-2xl">
-              {PROVIDERS.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => setProviderKey(p.key)}
-                  className={`h-14 rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition ${
-                    providerKey === p.key ? "bg-card shadow-premium text-primary" : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span>{p.label}</span>
-                  <span className="text-[10px] font-normal opacity-70">{p.sub}</span>
-                </button>
-              ))}
-            </div>
+            <p className="label-eyebrow mb-2">Phone Number</p>
+            <Input
+              type="tel"
+              placeholder="08012345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              maxLength={11}
+              className="h-14 rounded-2xl bg-muted/60 border-transparent text-base"
+            />
           </div>
 
+          {/* 2. Network */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="label-eyebrow">Select Network</p>
@@ -183,27 +186,52 @@ export default function DataPage() {
             </div>
           </div>
 
+          {/* 3. Provider dropdown */}
           <div>
-            <p className="label-eyebrow mb-2">Phone Number</p>
-            <Input
-              type="tel"
-              placeholder="08012345678"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-              maxLength={11}
-              className="h-14 rounded-2xl bg-muted/60 border-transparent text-base"
-            />
+            <p className="label-eyebrow mb-2">Select Provider</p>
+            <Select value={providerKey} onValueChange={(v) => setProviderKey(v as ProviderKey)}>
+              <SelectTrigger className="h-14 rounded-2xl bg-muted/60 border-transparent text-base">
+                <SelectValue placeholder="Choose a provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDERS.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>
+                    <span className="font-semibold">{p.label}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{p.sub}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
+          {/* 4. Bundle */}
           <div>
             <p className="label-eyebrow mb-2">Choose Bundle</p>
-            {bundlesLoading ? (
+            {!providerKey ? (
+              <div className="rounded-2xl bg-muted/60 p-6 text-center text-sm text-muted-foreground">
+                Select a provider to view bundles
+              </div>
+            ) : !network ? (
+              <div className="rounded-2xl bg-muted/60 p-6 text-center text-sm text-muted-foreground">
+                Pick a network first
+              </div>
+            ) : bundlesLoading ? (
               <div className="grid grid-cols-2 gap-2">
                 {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}
               </div>
+            ) : bundleError ? (
+              <div className="rounded-2xl bg-destructive/10 p-4 text-center text-sm text-destructive">
+                {bundleError}
+                <button
+                  onClick={() => fetchBundles(network, providerKey)}
+                  className="block mx-auto mt-2 text-xs font-semibold underline text-destructive"
+                >
+                  Retry
+                </button>
+              </div>
             ) : bundles.length === 0 ? (
               <div className="rounded-2xl bg-muted/60 p-6 text-center text-sm text-muted-foreground">
-                {network ? "No bundles available" : "Pick a network first"}
+                No bundles available
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">

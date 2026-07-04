@@ -6,6 +6,7 @@ import TransactionList from "@/components/TransactionList";
 import FundWalletDialog from "@/components/FundWalletDialog";
 import VirtualAccountCard from "@/components/VirtualAccountCard";
 import WithdrawDialog from "@/components/WithdrawDialog";
+import CheapestDealsPopup from "@/components/CheapestDealsPopup";
 import { useWallet, useWalletTransactions } from "@/hooks/useWallet";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
@@ -56,6 +57,7 @@ export default function Dashboard() {
 
       <FundWalletDialog open={fundOpen} onOpenChange={setFundOpen} />
       <WithdrawDialog open={withdrawOpen} onOpenChange={setWithdrawOpen} walletBalance={balance} />
+      <CheapestDealsPopup />
     </DashboardLayout>
   );
 }
