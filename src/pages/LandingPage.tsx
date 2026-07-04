@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Zap, Shield, Wifi, Phone, Tv, CreditCard, ArrowRight, CheckCircle, Menu, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import CheapestDealsPopup from "@/components/CheapestDealsPopup";
 
 const features = [
   { icon: Phone, title: "Airtime Top-up", desc: "Instant airtime for all networks — MTN, Airtel, Glo, 9mobile." },
