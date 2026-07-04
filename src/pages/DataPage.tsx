@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWallet } from "@/hooks/useWallet";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import TransactionPinDialog from "@/components/TransactionPinDialog";
 import { detectNetwork } from "@/lib/networkDetect";
 
