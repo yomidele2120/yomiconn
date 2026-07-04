@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const CDH_BASE_URL = 'https://www.cheapdatahub.ng/api/v1/resellers';
-const ELRUFAI_BASE_URL = Deno.env.get('ELRUFAI_BASE_URL') || 'https://api.elrufaids.com';
+const ELRUFAI_BASE_URL = Deno.env.get('ELRUFAI_BASE_URL') || 'https://elrufaidatalink.com/api';
 
 // Network mapping: our frontend IDs → Provider 2 network IDs
 // Ours: 1=MTN, 2=Airtel, 3=Glo, 4=9mobile
