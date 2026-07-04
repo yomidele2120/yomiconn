@@ -71,14 +71,17 @@ export default function DataPage() {
   const fetchBundles = async (networkId: string, source: ProviderKey) => {
     setBundlesLoading(true);
     setBundleId("");
+    setBundleError("");
     try {
       const { data, error } = await supabase.functions.invoke("get-data-bundles", {
         body: { network_id: networkId, provider_source: source },
       });
       if (error) throw error;
-      setBundles(data?.bundles ?? []);
+      const list = data?.bundles ?? [];
+      setBundles(list);
+      if (!list.length) setBundleError("No bundles available for this network/provider.");
     } catch {
-      toast.error("Failed to load bundles");
+      setBundleError("Unable to load available bundles. Please try again.");
       setBundles([]);
     } finally {
       setBundlesLoading(false);
