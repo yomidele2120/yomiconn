@@ -51,7 +51,10 @@ export default function DataPage() {
   const balance = wallet?.balance ?? 0;
 
   useEffect(() => {
-    if (network) fetchBundles(network, providerKey);
+    setBundles([]);
+    setBundleId("");
+    setBundleError("");
+    if (network && providerKey) fetchBundles(network, providerKey);
   }, [network, providerKey]);
 
   // Auto-detect network from phone prefix
