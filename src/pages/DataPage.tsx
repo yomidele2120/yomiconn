@@ -43,7 +43,8 @@ export default function DataPage() {
   const [bundlesLoading, setBundlesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPin, setShowPin] = useState(false);
-  const [providerKey, setProviderKey] = useState<ProviderKey>("cheapdatahub");
+  const [providerKey, setProviderKey] = useState<ProviderKey>("");
+  const [bundleError, setBundleError] = useState("");
   const [autoDetected, setAutoDetected] = useState(false);
   const { data: wallet } = useWallet();
   const queryClient = useQueryClient();
