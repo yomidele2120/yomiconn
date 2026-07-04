@@ -6,10 +6,121 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+const ELRUFAI_BASE_URL = Deno.env.get('ELRUFAI_BASE_URL') || 'https://elrufaidatalink.com/api';
+
+// Our network IDs: 1=MTN, 2=Airtel, 3=Glo, 4=9mobile
+// ElRufai (Bilal-family) network IDs: 1=MTN, 2=GLO, 3=9mobile, 4=Airtel
+const ELRUFAI_NETWORK_MAP: Record<string, number> = { '1': 1, '2': 4, '3': 2, '4': 3 };
+
+interface AppSettings {
+  data_profit_1_3gb: number;
+  data_profit_4gb_plus: number;
+}
+
+async function loadSettings(admin: any): Promise<AppSettings> {
+  const defaults: AppSettings = { data_profit_1_3gb: 30, data_profit_4gb_plus: 50 };
+  try {
+    const { data } = await admin.from('app_settings').select('key,value');
+    for (const r of data || []) {
+      if (r.key in defaults) {
+        (defaults as any)[r.key] = typeof r.value === 'number' ? r.value : Number(r.value);
+      }
+    }
+  } catch { /* ignore */ }
+  return defaults;
+}
+
+function estimateMb(plan: string): number {
+  // "1GB", "500MB", "1.5GB", "SME 1GB"
+  const s = String(plan || '').toUpperCase();
+  const gbM = s.match(/([\d.]+)\s*GB/);
+  if (gbM) return Math.round(parseFloat(gbM[1]) * 1024);
+  const mbM = s.match(/([\d.]+)\s*MB/);
+  if (mbM) return Math.round(parseFloat(mbM[1]));
+  return 0;
+}
+
+function markupPrice(cost: number, sizeMb: number, s: AppSettings): number {
+  const gb = sizeMb / 1024;
+  const flat = gb >= 4 ? s.data_profit_4gb_plus : s.data_profit_1_3gb;
+  return Math.round(cost + flat);
+}
+
+async function fetchElRufaiBundles(networkId: string, s: AppSettings) {
+  const apiKey = Deno.env.get('ELRUFAIDATALINK_API_KEY') || Deno.env.get('ELRUFAI_API_KEY');
+  if (!apiKey) throw new Error('ElRufaiDataSub API key not configured');
+
+  const targetNet = ELRUFAI_NETWORK_MAP[networkId];
+  if (!targetNet) return [];
+
+  // Try /user/ (Bilal-family lists plans there); fall back to /data_plans/
+  const endpoints = ['/user/', '/data_plans/'];
+  let plans: any[] = [];
+  let lastErr = '';
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(`${ELRUFAI_BASE_URL}${ep}`, {
+        headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
+      });
+      const text = await res.text();
+      if (!res.ok) { lastErr = `${ep} HTTP ${res.status}`; continue; }
+      let body: any;
+      try { body = JSON.parse(text); } catch { lastErr = `${ep} non-JSON`; continue; }
+
+      // Shape 1: { Dataplans: { MTN_PLAN: { ALL: [...] } } }
+      // Shape 2: { plans: [...] }  Shape 3: { data: [...] }
+      const collected: any[] = [];
+      const scan = (node: any) => {
+        if (!node) return;
+        if (Array.isArray(node)) { for (const it of node) if (it && typeof it === 'object') collected.push(it); return; }
+        if (typeof node === 'object') for (const v of Object.values(node)) scan(v);
+      };
+      scan(body.Dataplans || body.plans || body.data || body);
+      plans = collected;
+      if (plans.length) break;
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
   }
+
+  if (!plans.length) {
+    console.log('[ELRUFAI] no plans:', lastErr);
+    return [];
+  }
+
+  return plans
+    .filter((p: any) => {
+      const net = Number(p.plan_network_id ?? p.plan_network ?? p.network);
+      return net === targetNet;
+    })
+    .map((p: any) => {
+      const id = String(p.dataplan_id ?? p.id ?? p.plan_id ?? '');
+      const planName = String(p.plan ?? p.plan_name ?? p.name ?? '');
+      const cost = Number(p.plan_amount ?? p.amount ?? p.price ?? 0);
+      const validity = String(p.month_validate ?? p.validity ?? p.duration ?? '');
+      const type = String(p.plan_type ?? '');
+      const sizeMb = estimateMb(planName);
+      const displayPrice = markupPrice(cost, sizeMb, s);
+      const label = [type, planName, validity].filter(Boolean).join(' · ');
+      return {
+        id: `elrufaidatalink_${id}`,
+        name: label || planName || `Plan ${id}`,
+        price: cost,
+        displayPrice,
+        profit: displayPrice - cost,
+        size_mb: sizeMb,
+        validity,
+        provider_source: 'elrufaidatalink',
+        provider_plan_id: id,
+      };
+    })
+    .filter((b) => b.provider_plan_id && b.price > 0)
+    .sort((a, b) => a.displayPrice - b.displayPrice);
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
     const { network_id, provider_source } = await req.json();
@@ -20,15 +131,27 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
+    const source = String(provider_source || 'cheapdatahub');
+
+    // ElRufai: live fetch, no DB
+    if (source === 'elrufaidatalink' || source === 'elrufai') {
+      const settings = await loadSettings(admin);
+      const bundles = await fetchElRufaiBundles(String(network_id), settings);
+      return new Response(JSON.stringify({ bundles }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Default: DB-backed (CheapDataHub)
     let q = admin
       .from('provider_plans')
       .select('id, provider_source, provider_plan_id, name, size_mb, provider_cost, profit_amount, profit_percent')
       .eq('service_type', 'data')
       .eq('network_id', String(network_id))
-      .eq('is_active', true);
-    if (provider_source) q = q.eq('provider_source', String(provider_source));
-    const { data, error } = await q;
+      .eq('is_active', true)
+      .eq('provider_source', source);
 
+    const { data, error } = await q;
     if (error) throw error;
 
     const bundles = (data || [])
@@ -36,13 +159,12 @@ serve(async (req) => {
         const displayPrice = Math.round(
           (Number(p.provider_cost) + Number(p.profit_amount) + (Number(p.provider_cost) * Number(p.profit_percent) / 100)) * 100
         ) / 100;
-        const profit = Math.round((displayPrice - Number(p.provider_cost)) * 100) / 100;
         return {
           id: `${p.provider_source}_${p.provider_plan_id}`,
           name: p.name,
           price: Number(p.provider_cost),
           displayPrice,
-          profit,
+          profit: Math.round((displayPrice - Number(p.provider_cost)) * 100) / 100,
           size_mb: p.size_mb || 0,
           provider_source: p.provider_source,
           provider_plan_id: p.provider_plan_id,
