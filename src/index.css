@@ -89,6 +89,11 @@
     color-scheme: dark;
     caret-color: currentColor;
   }
+}
+
+@layer components {
+  .success-gradient {
+    background: hsl(145 40% 15%);
     color: hsl(var(--success));
     border: 1px solid hsl(var(--success) / 0.3);
   }
