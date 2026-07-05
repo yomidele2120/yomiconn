@@ -49,45 +49,53 @@ function markupPrice(cost: number, sizeMb: number, s: AppSettings): number {
 async function fetchElRufaiBundles(networkId: string, s: AppSettings) {
   const apiKey = Deno.env.get('ELRUFAIDATALINK_API_KEY') || Deno.env.get('ELRUFAI_API_KEY');
   if (!apiKey) throw new Error('ElRufaiDataSub API key not configured');
+  console.log('[ELRUFAI] key length:', apiKey.length, 'prefix:', apiKey.slice(0, 6));
 
   const targetNet = ELRUFAI_NETWORK_MAP[networkId];
   if (!targetNet) return [];
 
-  // Try /user/ (Bilal-family lists plans there); fall back to /data_plans/
-  const endpoints = ['/user/', '/data_plans/'];
+  const endpoints = ['/user/', '/data_plans/', '/plans/', '/data/'];
+  const authSchemes = [
+    { name: 'Token', headers: { 'Authorization': `Token ${apiKey}` } },
+    { name: 'Bearer', headers: { 'Authorization': `Bearer ${apiKey}` } },
+    { name: 'X-API-Key', headers: { 'X-API-Key': apiKey } },
+  ];
+
   let plans: any[] = [];
-  let lastErr = '';
+  const attempts: string[] = [];
 
-  for (const ep of endpoints) {
-    try {
-      const res = await fetch(`${ELRUFAI_BASE_URL}${ep}`, {
-        headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
-      });
-      const text = await res.text();
-      if (!res.ok) { lastErr = `${ep} HTTP ${res.status}`; continue; }
-      let body: any;
-      try { body = JSON.parse(text); } catch { lastErr = `${ep} non-JSON`; continue; }
+  outer: for (const ep of endpoints) {
+    for (const scheme of authSchemes) {
+      try {
+        const res = await fetch(`${ELRUFAI_BASE_URL}${ep}`, {
+          headers: { ...scheme.headers, 'Content-Type': 'application/json' },
+        });
+        const text = await res.text();
+        attempts.push(`${ep}[${scheme.name}]=${res.status}`);
+        if (!res.ok) continue;
+        let body: any;
+        try { body = JSON.parse(text); } catch { continue; }
 
-      // Shape 1: { Dataplans: { MTN_PLAN: { ALL: [...] } } }
-      // Shape 2: { plans: [...] }  Shape 3: { data: [...] }
-      const collected: any[] = [];
-      const scan = (node: any) => {
-        if (!node) return;
-        if (Array.isArray(node)) { for (const it of node) if (it && typeof it === 'object') collected.push(it); return; }
-        if (typeof node === 'object') for (const v of Object.values(node)) scan(v);
-      };
-      scan(body.Dataplans || body.plans || body.data || body);
-      plans = collected;
-      if (plans.length) break;
-    } catch (e) {
-      lastErr = (e as Error).message;
+        const collected: any[] = [];
+        const scan = (node: any) => {
+          if (!node) return;
+          if (Array.isArray(node)) { for (const it of node) if (it && typeof it === 'object') collected.push(it); return; }
+          if (typeof node === 'object') for (const v of Object.values(node)) scan(v);
+        };
+        scan(body.Dataplans || body.plans || body.data || body);
+        plans = collected.filter((p: any) => p && (p.dataplan_id || p.plan_id || p.id || p.plan_amount || p.amount));
+        if (plans.length) { console.log('[ELRUFAI] success via', ep, scheme.name, 'plans:', plans.length); break outer; }
+      } catch (e) {
+        attempts.push(`${ep}[${scheme.name}]=ERR:${(e as Error).message}`);
+      }
     }
   }
 
   if (!plans.length) {
-    console.log('[ELRUFAI] no plans:', lastErr);
+    console.log('[ELRUFAI] no plans. attempts:', attempts.join(', '));
     return [];
   }
+
 
   return plans
     .filter((p: any) => {
