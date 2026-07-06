@@ -134,6 +134,7 @@ async function fetchElRufaiBundles(networkId: string, s: AppSettings) {
       };
     })
     .filter((b) => b.provider_plan_id && b.price > 0)
+    .filter((b, i, arr) => arr.findIndex(x => x.provider_plan_id === b.provider_plan_id) === i)
     .sort((a, b) => a.displayPrice - b.displayPrice);
 }
 
