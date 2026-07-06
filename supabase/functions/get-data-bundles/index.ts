@@ -83,8 +83,11 @@ async function fetchElRufaiBundles(networkId: string, s: AppSettings) {
           if (typeof node === 'object') for (const v of Object.values(node)) scan(v);
         };
         scan(body.Dataplans || body.plans || body.data || body);
-        plans = collected.filter((p: any) => p && (p.dataplan_id || p.plan_id || p.id || p.plan_amount || p.amount));
-        if (plans.length) { console.log('[ELRUFAI] success via', ep, scheme.name, 'plans:', plans.length); break outer; }
+        plans = collected.filter((p: any) => p && (p.dataplan_id || p.plan_id || p.plan_amount) && (p.plan_network_id !== undefined || p.plan_network !== undefined || p.network !== undefined));
+        if (plans.length) {
+          console.log('[ELRUFAI] success via', ep, scheme.name, 'plans:', plans.length, 'sample:', JSON.stringify(plans[0]));
+          break outer;
+        }
       } catch (e) {
         attempts.push(`${ep}[${scheme.name}]=ERR:${(e as Error).message}`);
       }
@@ -95,6 +98,13 @@ async function fetchElRufaiBundles(networkId: string, s: AppSettings) {
     console.log('[ELRUFAI] no plans. attempts:', attempts.join(', '));
     return [];
   }
+
+  const netCounts: Record<string, number> = {};
+  for (const p of plans) {
+    const n = String(p.plan_network_id ?? p.plan_network ?? p.network ?? '?');
+    netCounts[n] = (netCounts[n] || 0) + 1;
+  }
+  console.log('[ELRUFAI] network distribution:', JSON.stringify(netCounts), 'targetNet:', targetNet);
 
 
   return plans
