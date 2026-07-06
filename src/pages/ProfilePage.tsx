@@ -131,6 +131,22 @@ export default function ProfilePage() {
       {/* Support */}
       <SectionTitle>Support</SectionTitle>
       <Group>
+        <a
+          href="https://wa.me/2349135134170?text=Hi%20YomiConnect%20Support%2C%20I%20need%20help"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/40 active:bg-muted/60 transition-colors">
+          <span className="w-9 h-9 rounded-xl bg-[#25D366]/10 flex items-center justify-center shrink-0">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-[#25D366]" aria-hidden="true">
+              <path d="M20.52 3.48A11.94 11.94 0 0 0 12.02 0C5.4 0 .04 5.36.04 11.98c0 2.11.55 4.17 1.6 5.99L0 24l6.2-1.62a11.96 11.96 0 0 0 5.82 1.49h.01c6.62 0 11.98-5.36 11.98-11.98 0-3.2-1.25-6.21-3.49-8.41zM12.03 21.8h-.01a9.83 9.83 0 0 1-5.01-1.37l-.36-.21-3.68.96.98-3.59-.23-.37a9.82 9.82 0 0 1-1.5-5.24c0-5.44 4.42-9.86 9.86-9.86 2.63 0 5.11 1.03 6.97 2.89a9.79 9.79 0 0 1 2.88 6.97c0 5.44-4.42 9.82-9.9 9.82zm5.4-7.36c-.29-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.29-.77.96-.94 1.16-.17.2-.35.22-.64.07-.29-.15-1.24-.46-2.36-1.46-.87-.78-1.46-1.74-1.63-2.03-.17-.29-.02-.45.13-.6.14-.13.29-.35.44-.52.15-.17.2-.29.29-.49.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.29-1.04 1.02-1.04 2.48s1.07 2.88 1.22 3.08c.15.2 2.1 3.21 5.09 4.5.71.31 1.27.49 1.7.63.71.23 1.36.19 1.87.12.57-.09 1.75-.71 2-1.4.25-.7.25-1.29.17-1.4-.07-.12-.27-.19-.56-.34z"/>
+            </svg>
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm">Chat on WhatsApp</div>
+            <div className="text-[11px] text-muted-foreground">Talk to us · 0913 513 4170</div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </a>
         <Row icon={MessageCircle} label="Help Center" onClick={() => toast.info("Coming soon")} />
         <Row icon={FileText} label="Terms & Privacy" onClick={() => toast.info("Coming soon")} />
         <Row icon={HelpCircle} label="About YomiConnect" onClick={() => toast.info("v1.0 · YomiConnect")} />

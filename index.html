@@ -26,29 +26,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- AI Sales Rep Widget -->
-    <script>
-      (function() {
-        var w = document.createElement('div');
-        w.id = 'salesrep-widget';
-        w.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;';
-        document.body.appendChild(w);
-
-        var btn = document.createElement('button');
-        btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-        btn.style.cssText = 'width:56px;height:56px;border-radius:50%;background:hsl(160,84%,39%);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
-
-        var frame = document.createElement('iframe');
-        frame.src = 'https://businessaleschat.vercel.app/widget/d5c5bf89-aabf-4d3c-9840-ed5b1376d509';
-        frame.style.cssText = 'width:380px;height:520px;border:none;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.15);display:none;margin-bottom:12px;';
-
-        w.appendChild(frame);
-        w.appendChild(btn);
-
-        btn.onclick = function() {
-          frame.style.display = frame.style.display === 'none' ? 'block' : 'none';
-        };
-      })();
-    </script>
   </body>
 </html>

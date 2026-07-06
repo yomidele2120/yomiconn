@@ -65,11 +65,21 @@ async function callCheapDataHub(
 
   // Detect provider state from response body (CDH varies by endpoint)
   const rawStatus = String(data?.status ?? data?.transaction_status ?? data?.data?.status ?? '').toLowerCase();
-  const isSuccess = res.ok && ['success','successful','completed','delivered'].includes(rawStatus);
-  const isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
+  const message = String(data?.message ?? data?.api_response ?? data?.detail ?? data?.data?.message ?? '').toLowerCase();
+  const successWords = /(success|successful|delivered|completed|approved)/;
+  const failWords = /(fail|error|invalid|insufficient|declined|rejected)/;
+
+  let isSuccess = res.ok && ['success','successful','completed','delivered'].includes(rawStatus);
+  let isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
+
+  // Fallback: HTTP 200 with a success-worded message and no failure indicator
+  if (!isSuccess && !isPending && res.ok && !rawStatus && message && successWords.test(message) && !failWords.test(message)) {
+    isSuccess = true;
+  }
+
   const providerRef = data?.transaction_id ?? data?.reference ?? data?.data?.transaction_id ?? data?.data?.reference ?? null;
 
-  console.log(`[CDH] http=${res.status} raw=${rawStatus} success=${isSuccess} pending=${isPending}`);
+  console.log(`[CDH] http=${res.status} raw=${rawStatus} msg="${message.substring(0,80)}" success=${isSuccess} pending=${isPending}`);
   return { ok: isSuccess, pending: isPending, providerRef, data };
 }
 
