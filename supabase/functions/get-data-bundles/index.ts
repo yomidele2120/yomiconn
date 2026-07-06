@@ -109,7 +109,7 @@ async function fetchElRufaiBundles(networkId: string, s: AppSettings) {
 
   return plans
     .filter((p: any) => {
-      const net = Number(p.plan_network_id ?? p.plan_network ?? p.network);
+      const net = Number(p.network ?? p.plan_network_id);
       return net === targetNet;
     })
     .map((p: any) => {
