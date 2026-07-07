@@ -198,7 +198,7 @@ export default function DataPage() {
                 {PROVIDERS.map((p) => (
                   <SelectItem key={p.key} value={p.key}>
                     <span className="font-semibold">{p.label}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{p.sub}</span>
+
                   </SelectItem>
                 ))}
               </SelectContent>
