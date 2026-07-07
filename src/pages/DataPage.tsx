@@ -20,9 +20,10 @@ const networks = [
 ];
 
 const PROVIDERS = [
-  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
-  { key: "elrufaidatalink", label: "Provider 2", sub: "ElRufaiDataSub" },
+  { key: "cheapdatahub", label: "Provider 1" },
+  { key: "elrufaidatalink", label: "Provider 2" },
 ] as const;
+
 type ProviderKey = typeof PROVIDERS[number]["key"] | "";
 
 interface DataBundle {
