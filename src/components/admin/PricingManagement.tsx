@@ -160,7 +160,7 @@ export default function PricingManagement() {
           <div className="py-8 text-center text-sm text-muted-foreground">Loading plans…</div>
         ) : filtered.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No plans. Click <strong>Sync from CheapDataHub</strong> to import.
+            No plans. Click <strong>Sync from Provider 1</strong> to import.
           </div>
         ) : (
           <div className="overflow-x-auto">
