@@ -117,8 +117,8 @@ export default function AirtimePage() {
                   }`}
                 >
                   <span>{p.label}</span>
-                  <span className="text-[10px] font-normal opacity-70">{p.sub}</span>
                 </button>
+
               ))}
             </div>
           </div>
