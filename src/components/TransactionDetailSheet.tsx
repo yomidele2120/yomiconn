@@ -51,12 +51,22 @@ export default function TransactionDetailSheet({ tx, onClose }: { tx: DisplayTx 
         </div>
 
         <div className="bg-muted/40 rounded-2xl px-4 mt-2">
-          <Row label="Type" value={tx.type === "credit" ? "Wallet Credit" : (tx.service_type || "Debit")} />
+          <Row label="Type" value={tx.type === "credit" ? "Wallet Credit" : (tx.service_type ? tx.service_type.charAt(0).toUpperCase() + tx.service_type.slice(1) : "Debit")} />
           {tx.provider && <Row label="Provider" value={tx.provider} />}
-          {tx.recipient && <Row label="Recipient" value={tx.recipient} />}
+          {tx.plan_name && <Row label="Plan" value={tx.plan_name} />}
+          {tx.phone_number && <Row label="Phone Number" value={tx.phone_number} copy />}
+          {tx.meter_number && <Row label={`Meter${tx.meter_type ? ` (${tx.meter_type})` : ""}`} value={tx.meter_number} copy />}
+          {tx.smartcard_number && <Row label="Smartcard" value={tx.smartcard_number} copy />}
+          {tx.recipient && !tx.phone_number && !tx.meter_number && !tx.smartcard_number && (
+            <Row label="Recipient" value={tx.recipient} />
+          )}
           <Row label="Amount" value={fmtNGN(tx.amount)} />
           {tx.reference && <Row label="Reference" value={tx.reference} copy />}
+          {tx.provider_reference && <Row label="Provider Ref" value={tx.provider_reference} copy />}
           <Row label="Date & Time" value={format(new Date(tx.created_at), "MMM d, yyyy · h:mm a")} />
+          {tx.completed_at && tx.completed_at !== tx.created_at && (
+            <Row label="Completed" value={format(new Date(tx.completed_at), "MMM d, yyyy · h:mm a")} />
+          )}
         </div>
 
         {isFailed && tx.failure_reason && (
@@ -69,12 +79,32 @@ export default function TransactionDetailSheet({ tx, onClose }: { tx: DisplayTx 
         <div className="mt-5 space-y-2">
           {isSuccess && (
             <Button variant="outline" className="w-full h-12 rounded-xl border-primary text-primary"
-              onClick={() => toast.success("Receipt shared")}>
+              onClick={async () => {
+                const lines = [
+                  "YomiConnect Receipt",
+                  `Status: Successful`,
+                  `Type: ${tx.service_type || (tx.type === "credit" ? "Wallet Credit" : "Debit")}`,
+                  tx.provider ? `Provider: ${tx.provider}` : "",
+                  tx.plan_name ? `Plan: ${tx.plan_name}` : "",
+                  tx.phone_number ? `Phone: ${tx.phone_number}` : "",
+                  tx.meter_number ? `Meter: ${tx.meter_number}` : "",
+                  tx.smartcard_number ? `Smartcard: ${tx.smartcard_number}` : "",
+                  `Amount: ${fmtNGN(tx.amount)}`,
+                  tx.reference ? `Ref: ${tx.reference}` : "",
+                  tx.provider_reference ? `Provider Ref: ${tx.provider_reference}` : "",
+                  `Date: ${format(new Date(tx.created_at), "MMM d, yyyy · h:mm a")}`,
+                ].filter(Boolean).join("\n");
+                try {
+                  if (navigator.share) await navigator.share({ title: "Receipt", text: lines });
+                  else { await navigator.clipboard.writeText(lines); toast.success("Receipt copied"); }
+                } catch { /* user cancelled */ }
+              }}>
               <Share2 className="w-4 h-4" /> Share Receipt
             </Button>
           )}
           <button onClick={onClose} className="w-full text-sm text-muted-foreground py-2">Close</button>
         </div>
+
       </SheetContent>
     </Sheet>
   );

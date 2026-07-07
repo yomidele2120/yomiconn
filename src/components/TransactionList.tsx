@@ -15,7 +15,15 @@ export interface DisplayTx {
   service_type?: string | null;
   recipient?: string | null;
   failure_reason?: string | null;
+  phone_number?: string | null;
+  meter_number?: string | null;
+  meter_type?: string | null;
+  smartcard_number?: string | null;
+  plan_name?: string | null;
+  provider_reference?: string | null;
+  completed_at?: string | null;
 }
+
 
 interface Props {
   transactions: DisplayTx[];

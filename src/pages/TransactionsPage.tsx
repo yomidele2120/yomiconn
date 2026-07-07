@@ -17,13 +17,26 @@ export default function TransactionsPage() {
       id: t.id, type: t.type, amount: Number(t.amount), description: t.description,
       status: t.status, created_at: t.created_at, reference: t.reference,
     }));
-    const s: DisplayTx[] = (serviceTx ?? []).map((t: any) => ({
-      id: t.id, type: "debit", amount: Number(t.amount),
-      description: `${t.service_type} ${t.provider ? "- " + t.provider : ""}`,
-      status: t.status, created_at: t.created_at, reference: t.reference,
-      provider: t.provider, service_type: t.service_type, recipient: t.recipient,
-      failure_reason: t.failure_reason,
-    }));
+    const s: DisplayTx[] = (serviceTx ?? []).map((t: any) => {
+      const m = (t.metadata || {}) as any;
+      const recipient = t.phone_number || m.phone_number || m.meter_no || m.smartcard_no || null;
+      return {
+        id: t.id, type: "debit", amount: Number(t.amount),
+        description: `${t.service_type}${t.provider ? " - " + t.provider.split(":")[0] : ""}${recipient ? " · " + recipient : ""}`,
+        status: t.status, created_at: t.created_at, reference: t.reference,
+        provider: t.provider ? t.provider.split(":")[0] : null,
+        service_type: t.service_type, recipient,
+        failure_reason: t.failure_reason,
+        phone_number: t.phone_number || m.phone_number || null,
+        meter_number: m.meter_no || null,
+        meter_type: m.meter_type || null,
+        smartcard_number: m.smartcard_no || null,
+        plan_name: m.plan_name || m.bundle_name || null,
+        provider_reference: t.provider_reference || null,
+        completed_at: t.completed_at || null,
+      };
+    });
+
     return [...w, ...s].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
   }, [walletTx, serviceTx]);
 
