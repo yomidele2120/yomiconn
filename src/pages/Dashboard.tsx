@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import WalletCard from "@/components/WalletCard";
 import ServiceGrid from "@/components/ServiceGrid";
@@ -10,6 +10,9 @@ import CheapestDealsPopup from "@/components/CheapestDealsPopup";
 import { useWallet, useWalletTransactions } from "@/hooks/useWallet";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Dashboard() {
   const [fundOpen, setFundOpen] = useState(false);
@@ -17,6 +20,23 @@ export default function Dashboard() {
   const { data: wallet, isLoading: walletLoading } = useWallet();
   const { data: transactions, isLoading: txLoading } = useWalletTransactions();
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const { data: isAdmin } = useQuery({
+    queryKey: ["is-admin", user?.id],
+    queryFn: async () => {
+      if (!user) return false;
+      const { data } = await supabase.from("user_roles").select("role")
+        .eq("user_id", user.id).eq("role", "admin").maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (isAdmin) navigate("/admin", { replace: true });
+  }, [isAdmin, navigate]);
+
 
   const balance = Number(wallet?.balance ?? 0);
   const recent = (transactions ?? []).slice(0, 3).map((t: any) => ({
