@@ -20,9 +20,10 @@ const networks = [
 ];
 
 const PROVIDERS = [
-  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
-  { key: "elrufaidatalink", label: "Provider 2", sub: "ElRufaiDataSub" },
+  { key: "cheapdatahub", label: "Provider 1" },
+  { key: "elrufaidatalink", label: "Provider 2" },
 ] as const;
+
 type ProviderKey = typeof PROVIDERS[number]["key"] | "";
 
 interface DataBundle {
@@ -197,7 +198,7 @@ export default function DataPage() {
                 {PROVIDERS.map((p) => (
                   <SelectItem key={p.key} value={p.key}>
                     <span className="font-semibold">{p.label}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{p.sub}</span>
+
                   </SelectItem>
                 ))}
               </SelectContent>

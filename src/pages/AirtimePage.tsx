@@ -18,10 +18,11 @@ const providers = [
 ];
 
 const API_PROVIDERS = [
-  { key: "cheapdatahub", label: "Provider 1", sub: "CheapDataHub" },
-  { key: "elrufaidatalink", label: "Provider 2", sub: "ElRufaiDataSub" },
+  { key: "cheapdatahub", label: "Provider 1" },
+  { key: "elrufaidatalink", label: "Provider 2" },
 ] as const;
 type ApiProviderKey = typeof API_PROVIDERS[number]["key"];
+
 
 export default function AirtimePage() {
   const navigate = useNavigate();
@@ -116,8 +117,8 @@ export default function AirtimePage() {
                   }`}
                 >
                   <span>{p.label}</span>
-                  <span className="text-[10px] font-normal opacity-70">{p.sub}</span>
                 </button>
+
               ))}
             </div>
           </div>

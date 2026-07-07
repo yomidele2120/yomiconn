@@ -61,7 +61,8 @@ export default function CheapestDealsPopup() {
 
   const top = deals[0];
   const providerLabel = top?.provider_label || "Provider 1";
-  const providerName = top?.provider_source === "elrufaidatalink" ? "ElRufaiDataSub" : "CheapDataHub";
+  const providerName = providerLabel;
+
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"

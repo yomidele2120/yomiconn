@@ -309,12 +309,10 @@ export default function AdminPage() {
             </div>
             <span className="text-lg font-heading font-bold text-foreground">YOMIconnect Admin</span>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
-            <Button variant="ghost" size="icon" onClick={async () => { await signOut(); navigate("/auth"); }}>
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={async () => { await signOut(); navigate("/auth"); }}>
+            <LogOut className="w-4 h-4" />
+          </Button>
+
         </div>
       </header>
 
