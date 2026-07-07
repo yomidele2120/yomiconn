@@ -126,7 +126,8 @@ export default function PricingManagement() {
           </div>
           <Button onClick={handleSync} disabled={syncing} size="sm">
             {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Sync from CheapDataHub
+            Sync from Provider 1
+
           </Button>
         </div>
       </CardHeader>
