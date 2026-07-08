@@ -19,6 +19,57 @@ const ELRUFAI_NETWORK_MAP: Record<string, number> = {
   '4': 3,
 };
 
+type ProviderResult = { ok: boolean; pending?: boolean; providerRef?: string | null; data: any; message?: string };
+
+function toProviderNumber(value: unknown): number | string {
+  const text = String(value ?? '').trim();
+  if (!text) return text;
+  const numeric = Number(text);
+  return Number.isFinite(numeric) ? numeric : text;
+}
+
+function extractProviderMessage(data: any, fallback = 'Provider request failed'): string {
+  return String(
+    data?.message ??
+    data?.api_response ??
+    data?.detail ??
+    data?.error ??
+    data?.data?.message ??
+    data?.data?.error ??
+    fallback
+  );
+}
+
+function evaluateProviderResponse(res: Response, data: any): ProviderResult {
+  const rawStatusVal = data?.status ?? data?.Status ?? data?.transaction_status ?? data?.data?.status ?? data?.data?.Status;
+  const rawStatus = String(rawStatusVal ?? '').toLowerCase();
+  const message = extractProviderMessage(data, `HTTP ${res.status}`).toLowerCase();
+  const successWords = /(success|successful|delivered|completed|approved)/;
+  const pendingWords = /(pending|processing|initiated|queued|in_progress)/;
+  const failWords = /(fail|failed|error|invalid|insufficient|declined|rejected|low|does not exist|not found)/;
+
+  let isSuccess = res.ok && (
+    rawStatusVal === true ||
+    data?.error === false ||
+    ['success', 'successful', 'completed', 'delivered', 'true', 'ok', 'approved'].includes(rawStatus)
+  );
+  let isPending = res.ok && ['pending', 'processing', 'initiated', 'queued', 'in_progress'].includes(rawStatus);
+
+  if (!isSuccess && !isPending && res.ok && message && successWords.test(message) && !failWords.test(message)) {
+    isSuccess = true;
+  }
+  if (!isSuccess && !isPending && res.ok && message && pendingWords.test(message) && !failWords.test(message)) {
+    isPending = true;
+  }
+
+  const providerRef = data?.transaction_id ?? data?.reference ?? data?.data?.transaction_id ?? data?.data?.reference ?? data?.id ?? null;
+  return { ok: isSuccess, pending: isPending, providerRef, data, message: extractProviderMessage(data, `HTTP ${res.status}`) };
+}
+
+function shouldTryAlternateDataPayload(message: string): boolean {
+  return /(plan|bundle|network|field|required|invalid|does not exist|not found|purchase failed)/i.test(message);
+}
+
 // ─── Provider API helpers ───
 
 async function callCheapDataHub(
@@ -26,66 +77,65 @@ async function callCheapDataHub(
   serviceType: string,
   params: Record<string, any>,
   amount: number
-): Promise<{ ok: boolean; data: any }> {
+): Promise<ProviderResult> {
   let endpoint = '';
-  let apiBody: Record<string, any> = {};
+  let payloads: Record<string, any>[] = [];
 
   switch (serviceType) {
     case 'airtime':
       endpoint = '/airtime/purchase/';
-      apiBody = { provider_id: params.provider_id, phone_number: params.phone_number, amount };
+      payloads = [{ provider_id: toProviderNumber(params.provider_id), phone_number: params.phone_number, amount }];
       break;
     case 'data':
       endpoint = '/data/purchase/';
-      apiBody = { bundle_id: params.provider_plan_id || params.bundle_id, phone_number: params.phone_number };
+      {
+        const planId = params.provider_plan_id || params.bundle_id || params.plan_id;
+        const networkId = params.provider_id || params.network_id;
+        payloads = [
+          { bundle_id: toProviderNumber(planId), phone_number: params.phone_number },
+          { plan_id: toProviderNumber(planId), phone_number: params.phone_number },
+          { plan_id: String(planId), phone: params.phone_number },
+          { bundle_id: toProviderNumber(planId), phone_number: params.phone_number, provider_id: toProviderNumber(networkId) },
+        ];
+      }
       break;
     case 'electricity':
       endpoint = '/electricity/purchase/';
-      apiBody = { disco: params.disco, meter_no: params.meter_no, amount, phone_number: params.phone_number, meter_type: params.meter_type };
+      payloads = [{ disco: params.disco, meter_no: params.meter_no, amount, phone_number: params.phone_number, meter_type: params.meter_type }];
       break;
     case 'cable':
       endpoint = '/cable/purchase/';
-      apiBody = { smartcard_no: params.smartcard_no, plan_id: params.provider_plan_id || params.plan_id };
+      payloads = [{ smartcard_no: params.smartcard_no, plan_id: toProviderNumber(params.provider_plan_id || params.plan_id) }];
       break;
     default:
       throw new Error('Invalid service type');
   }
 
-  console.log(`[CDH] POST ${endpoint}`, JSON.stringify(apiBody));
+  let lastResult: ProviderResult | null = null;
+  for (let i = 0; i < payloads.length; i++) {
+    const apiBody = payloads[i];
+    console.log(`[CDH] POST ${endpoint} attempt=${i + 1}`, JSON.stringify(apiBody));
 
-  const res = await fetch(`${CDH_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(apiBody),
-  });
+    const res = await fetch(`${CDH_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(apiBody),
+    });
 
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
 
-  // Detect provider state from response body (CDH varies by endpoint)
-  const rawStatusVal = data?.status ?? data?.transaction_status ?? data?.data?.status;
-  const rawStatus = String(rawStatusVal ?? '').toLowerCase();
-  const message = String(data?.message ?? data?.api_response ?? data?.detail ?? data?.data?.message ?? '').toLowerCase();
-  const successWords = /(success|successful|delivered|completed|approved)/;
-  const failWords = /(fail|error|invalid|insufficient|declined|rejected)/;
+    const evaluated = evaluateProviderResponse(res, data);
+    lastResult = evaluated;
+    console.log(`[CDH] http=${res.status} msg="${String(evaluated.message || '').substring(0, 80)}" success=${evaluated.ok} pending=${!!evaluated.pending}`);
 
-  // Boolean true or truthy status strings = success
-  let isSuccess = res.ok && (
-    rawStatusVal === true ||
-    ['success','successful','completed','delivered','true','ok'].includes(rawStatus)
-  );
-  let isPending = res.ok && ['pending','processing','initiated','queued','in_progress'].includes(rawStatus);
-
-  // Fallback: HTTP 200 with a success-worded message and no failure indicator
-  if (!isSuccess && !isPending && res.ok && message && successWords.test(message) && !failWords.test(message)) {
-    isSuccess = true;
+    if (evaluated.ok || evaluated.pending || serviceType !== 'data' || !shouldTryAlternateDataPayload(evaluated.message || '')) {
+      return evaluated;
+    }
   }
 
-  const providerRef = data?.transaction_id ?? data?.reference ?? data?.data?.transaction_id ?? data?.data?.reference ?? null;
-
-  console.log(`[CDH] http=${res.status} raw=${rawStatus} msg="${message.substring(0,80)}" success=${isSuccess} pending=${isPending}`);
-  return { ok: isSuccess, pending: isPending, providerRef, data };
+  return lastResult || { ok: false, data: { error: 'Provider request failed' }, message: 'Provider request failed' };
 }
 
 async function callElRufaiDataSub(
@@ -93,50 +143,66 @@ async function callElRufaiDataSub(
   serviceType: string,
   params: Record<string, any>,
   amount: number
-): Promise<{ ok: boolean; data: any }> {
+): Promise<ProviderResult> {
   let endpoint = '';
-  let apiBody: Record<string, any> = {};
+  let payloads: Record<string, any>[] = [];
   const elrufaiNetwork = ELRUFAI_NETWORK_MAP[params.provider_id] || ELRUFAI_NETWORK_MAP[params.network_id] || 1;
 
   switch (serviceType) {
     case 'airtime':
       endpoint = '/airtime/';
-      apiBody = { network: elrufaiNetwork, amount, mobile_number: params.phone_number, Ported_number: true, airtime_type: 'VTU' };
+      payloads = [{ network: elrufaiNetwork, amount, mobile_number: params.phone_number, Ported_number: true, airtime_type: 'VTU' }];
       break;
     case 'data':
       endpoint = '/data/';
-      apiBody = { network: elrufaiNetwork, mobile_number: params.phone_number, plan: Number(params.provider_plan_id || params.bundle_id), Ported_number: true };
+      {
+        const planId = params.provider_plan_id || params.bundle_id || params.plan_id;
+        payloads = [
+          { network: elrufaiNetwork, mobile_number: params.phone_number, plan: toProviderNumber(planId), Ported_number: true },
+          { network: elrufaiNetwork, mobile_number: params.phone_number, data_plan: toProviderNumber(planId), Ported_number: true },
+          { network: elrufaiNetwork, phone_number: params.phone_number, plan_id: toProviderNumber(planId), Ported_number: true },
+        ];
+      }
       break;
     case 'electricity':
       endpoint = '/electricity/';
-      apiBody = { disco_name: params.disco, amount, meter_number: params.meter_no, MeterType: params.meter_type === 'prepaid' ? 1 : 2 };
+      payloads = [{ disco_name: params.disco, amount, meter_number: params.meter_no, MeterType: params.meter_type === 'prepaid' ? 1 : 2 }];
       break;
     case 'cable':
       endpoint = '/cable/';
-      apiBody = { cablename: params.cable_name_id || 1, cableplan: Number(params.provider_plan_id || params.plan_id), smart_card_number: params.smartcard_no };
+      payloads = [{ cablename: params.cable_name_id || 1, cableplan: toProviderNumber(params.provider_plan_id || params.plan_id), smart_card_number: params.smartcard_no }];
       break;
     default:
       throw new Error('Invalid service type');
   }
 
-  console.log(`[ELRUFAI] POST ${endpoint}`, JSON.stringify(apiBody));
+  let lastResult: ProviderResult | null = null;
+  for (let i = 0; i < payloads.length; i++) {
+    const apiBody = payloads[i];
+    console.log(`[ELRUFAI] POST ${endpoint} attempt=${i + 1}`, JSON.stringify(apiBody));
 
-  const res = await fetch(`${ELRUFAI_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(apiBody),
-  });
+    const res = await fetch(`${ELRUFAI_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(apiBody),
+    });
 
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
-  const isSuccess = res.ok && (data.status === 'successful' || data.Status === 'successful');
-  console.log(`[ELRUFAI] status=${res.status}, isSuccess=${isSuccess}`, JSON.stringify(data).substring(0, 300));
-  return { ok: isSuccess, data };
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { message: 'Non-JSON response', detail: text.substring(0, 300) }; }
+    const evaluated = evaluateProviderResponse(res, data);
+    lastResult = evaluated;
+    console.log(`[ELRUFAI] status=${res.status}, success=${evaluated.ok}, pending=${!!evaluated.pending}`, JSON.stringify(data).substring(0, 300));
+
+    if (evaluated.ok || evaluated.pending || serviceType !== 'data' || !shouldTryAlternateDataPayload(evaluated.message || '')) {
+      return evaluated;
+    }
+  }
+
+  return lastResult || { ok: false, data: { error: 'Provider request failed' }, message: 'Provider request failed' };
 }
 
 // ─── Provider registry ───
-type ProviderResult = { ok: boolean; pending?: boolean; providerRef?: string | null; data: any };
 type ProviderFn = (apiKey: string, serviceType: string, params: Record<string, any>, amount: number) => Promise<ProviderResult>;
 
 interface ProviderConfig {
@@ -152,8 +218,8 @@ const PROVIDERS: Record<string, ProviderConfig> = {
   elrufai:         { name: 'ElRufaiDataSub', envKeys: ['ELRUFAIDATALINK_API_KEY', 'ELRUFAI_API_KEY'], call: callElRufaiDataSub },
 };
 
-// CheapDataHub remains the default fallback provider.
-const FALLBACK_ORDER = ['cheapdatahub'];
+// Try the other configured provider when the chosen one rejects a purchase.
+const FALLBACK_ORDER = ['cheapdatahub', 'elrufaidatalink'];
 
 // ─── Main handler ───
 serve(async (req) => {
@@ -256,7 +322,7 @@ serve(async (req) => {
           console.log(`[PURCHASE] ${provider.name} ${result.ok ? 'SUCCESS' : 'PENDING'}`);
           break;
         } else {
-          lastError = result.data?.message || result.data?.api_response || result.data?.detail || `${provider.name} failed`;
+          lastError = result.message || result.data?.message || result.data?.api_response || result.data?.detail || `${provider.name} failed`;
           console.log(`[PURCHASE] ${provider.name} FAILED: ${lastError}`);
           result = null;
         }
