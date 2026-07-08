@@ -67,7 +67,7 @@ function evaluateProviderResponse(res: Response, data: any): ProviderResult {
 }
 
 function shouldTryAlternateDataPayload(message: string): boolean {
-  return /(plan|bundle|network|field|required|invalid|does not exist|not found)/i.test(message);
+  return /(plan|bundle|network|field|required|invalid|does not exist|not found|purchase failed)/i.test(message);
 }
 
 // ─── Provider API helpers ───
@@ -92,9 +92,10 @@ async function callCheapDataHub(
         const planId = params.provider_plan_id || params.bundle_id || params.plan_id;
         const networkId = params.provider_id || params.network_id;
         payloads = [
-          { plan_id: toProviderNumber(planId), phone_number: params.phone_number, provider_id: toProviderNumber(networkId) },
+          { bundle_id: toProviderNumber(planId), phone_number: params.phone_number },
+          { plan_id: toProviderNumber(planId), phone_number: params.phone_number },
+          { plan_id: String(planId), phone: params.phone_number },
           { bundle_id: toProviderNumber(planId), phone_number: params.phone_number, provider_id: toProviderNumber(networkId) },
-          { plan_id: String(planId), phone: params.phone_number, network: toProviderNumber(networkId) },
         ];
       }
       break;
